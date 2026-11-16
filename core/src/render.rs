@@ -511,12 +511,9 @@ impl Renderer {
         rpass.set_pipeline(&self.fade_pipeline);
         rpass.draw(0..3, 0..1);
 
-        // snow replaces the streaks with sprites, but keep fading so they clear
-        if !self.config.effects.is_enabled(Effects::SNOW) {
-            rpass.set_pipeline(&self.trail_pipeline);
-            self.trail_bg.set(&mut rpass);
-            rpass.draw(0..6, 0..self.config.particle_count);
-        }
+        rpass.set_pipeline(&self.trail_pipeline);
+        self.trail_bg.set(&mut rpass);
+        rpass.draw(0..6, 0..self.config.particle_count);
     }
 
     fn rebuild_bind_groups(&mut self, device: &wgpu::Device) {
@@ -564,22 +561,34 @@ impl Renderer {
         self.globals.effects = fx.enabled & ((1 << Effects::COUNT) - 1);
         self.globals.fx_speed_a = fx.colors[Effects::SPEED];
         self.globals.fx_speed_b = fx.colors2[Effects::SPEED];
-        self.globals.fx_speed_p = fx.params[Effects::SPEED];
+        let [p0, p1, p2, p3, q0, q1, q2, q3] = fx.params[Effects::SPEED];
+        self.globals.fx_speed_p = [p0, p1, p2, p3];
+        self.globals.fx_speed_q = [q0, q1, q2, q3];
         self.globals.fx_firefly_a = fx.colors[Effects::FIREFLY];
         self.globals.fx_firefly_b = fx.colors2[Effects::FIREFLY];
-        self.globals.fx_firefly_p = fx.params[Effects::FIREFLY];
+        let [p0, p1, p2, p3, q0, q1, q2, q3] = fx.params[Effects::FIREFLY];
+        self.globals.fx_firefly_p = [p0, p1, p2, p3];
+        self.globals.fx_firefly_q = [q0, q1, q2, q3];
         self.globals.fx_snow_a = fx.colors[Effects::SNOW];
         self.globals.fx_snow_b = fx.colors2[Effects::SNOW];
-        self.globals.fx_snow_p = fx.params[Effects::SNOW];
+        let [p0, p1, p2, p3, q0, q1, q2, q3] = fx.params[Effects::SNOW];
+        self.globals.fx_snow_p = [p0, p1, p2, p3];
+        self.globals.fx_snow_q = [q0, q1, q2, q3];
         self.globals.fx_comet_a = fx.colors[Effects::COMET];
         self.globals.fx_comet_b = fx.colors2[Effects::COMET];
-        self.globals.fx_comet_p = fx.params[Effects::COMET];
+        let [p0, p1, p2, p3, q0, q1, q2, q3] = fx.params[Effects::COMET];
+        self.globals.fx_comet_p = [p0, p1, p2, p3];
+        self.globals.fx_comet_q = [q0, q1, q2, q3];
         self.globals.fx_ink_a = fx.colors[Effects::INK];
         self.globals.fx_ink_b = fx.colors2[Effects::INK];
-        self.globals.fx_ink_p = fx.params[Effects::INK];
+        let [p0, p1, p2, p3, q0, q1, q2, q3] = fx.params[Effects::INK];
+        self.globals.fx_ink_p = [p0, p1, p2, p3];
+        self.globals.fx_ink_q = [q0, q1, q2, q3];
         self.globals.fx_neon_a = fx.colors[Effects::NEON];
         self.globals.fx_neon_b = fx.colors2[Effects::NEON];
-        self.globals.fx_neon_p = fx.params[Effects::NEON];
+        let [p0, p1, p2, p3, q0, q1, q2, q3] = fx.params[Effects::NEON];
+        self.globals.fx_neon_p = [p0, p1, p2, p3];
+        self.globals.fx_neon_q = [q0, q1, q2, q3];
     }
 
     fn compute_bounds(&self) -> [f32; 4] {

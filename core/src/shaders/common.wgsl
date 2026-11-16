@@ -9,25 +9,31 @@ struct Globals {
     bg_color2: vec4<f32>,
     color_slow: vec4<f32>,
     color_fast: vec4<f32>,
-    // effects: _a/_b are the gradient colors (alpha is the strength), _p the params
+    // effects: _a/_b are the gradient colors (alpha is the strength), _p/_q the params
     fx_speed_a: vec4<f32>,
     fx_speed_b: vec4<f32>,
     fx_speed_p: vec4<f32>,
+    fx_speed_q: vec4<f32>,
     fx_firefly_a: vec4<f32>,
     fx_firefly_b: vec4<f32>,
     fx_firefly_p: vec4<f32>,
+    fx_firefly_q: vec4<f32>,
     fx_snow_a: vec4<f32>,
     fx_snow_b: vec4<f32>,
     fx_snow_p: vec4<f32>,
+    fx_snow_q: vec4<f32>,
     fx_comet_a: vec4<f32>,
     fx_comet_b: vec4<f32>,
     fx_comet_p: vec4<f32>,
+    fx_comet_q: vec4<f32>,
     fx_ink_a: vec4<f32>,
     fx_ink_b: vec4<f32>,
     fx_ink_p: vec4<f32>,
+    fx_ink_q: vec4<f32>,
     fx_neon_a: vec4<f32>,
     fx_neon_b: vec4<f32>,
     fx_neon_p: vec4<f32>,
+    fx_neon_q: vec4<f32>,
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)
@@ -64,6 +70,11 @@ const FX_NEON: u32 = 32u;
 
 fn has_fx(effects: u32, bit: u32) -> bool {
     return (effects & bit) != 0u;
+}
+
+// snow effect: whether a particle is a flake instead of a streak
+fn is_flake(uv: vec2<f32>, amount: f32) -> bool {
+    return rand(uv * 2.9 + vec2<f32>(0.43)) < amount;
 }
 
 // same as original glsl rand

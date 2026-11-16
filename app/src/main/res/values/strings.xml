@@ -54,6 +54,7 @@
     <string name="fx_size_variation">Size variation</string>
     <string name="fx_fall">Fall speed</string>
     <string name="fx_softness">Softness</string>
+    <string name="fx_snow_amount">Amount (1 = only snow)</string>
     <string name="fx_head_size">Head size</string>
     <string name="fx_white_core">White core</string>
     <string name="fx_tail_length">Tail length (×)</string>
@@ -71,7 +72,7 @@
     <string name="effect_firefly">Fireflies</string>
     <string name="effect_firefly_summary">Some particles glow and flicker</string>
     <string name="effect_snow">Snow</string>
-    <string name="effect_snow_summary">Drifting flakes instead of streaks</string>
+    <string name="effect_snow_summary">Some particles become drifting flakes</string>
     <string name="effect_comet">Comets</string>
     <string name="effect_comet_summary">A bright head on every streak</string>
     <string name="effect_ink">Ink</string>

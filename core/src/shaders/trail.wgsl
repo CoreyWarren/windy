@@ -68,6 +68,11 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     let r = min(len / max(2.0 * half_width(), 1e-3), 1.0);
     out.alpha = life * r;
 
+    // snow effect: flakes are drawn as sprites instead of streaks
+    if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x)) {
+        out.alpha = 0.0;
+    }
+
     // gusts get the speed color
     let lo = g.fx_speed_p.x; // threshold
     let hi = lo + max(g.fx_speed_p.y, 0.01); // range

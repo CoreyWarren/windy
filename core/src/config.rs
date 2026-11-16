@@ -52,7 +52,7 @@ pub struct Effects {
     /// The gradient end colors, indexed by `Effects::*`.
     pub colors2: [[f32; 4]; Effects::COUNT],
     /// The params, indexed by `Effects::*`, see each effect for the meaning.
-    pub params: [[f32; 4]; Effects::COUNT],
+    pub params: [[f32; Effects::PARAM_COUNT]; Effects::COUNT],
 }
 
 impl Effects {
@@ -64,8 +64,9 @@ impl Effects {
     /// Some particles glow and flicker, each a random color in the gradient.
     /// Params: (amount, size, pulse rate in Hz, pulse sharpness).
     pub const FIREFLY: usize = 1;
-    /// Drifting dots instead of streaks, each a random color in the gradient.
-    /// Params: (size, size variation, fall speed, softness).
+    /// Some particles are drifting dots instead of streaks, each a random color
+    /// in the gradient. Params: (size, size variation, fall speed, softness,
+    /// amount).
     pub const SNOW: usize = 2;
     /// A bright head on each streak in the start color, with a halo in the end
     /// color. Params: (head size, white core, tail length, halo).
@@ -77,6 +78,8 @@ impl Effects {
     /// end color in fast ones. Params: (radius, brightness, quality, pulse).
     pub const NEON: usize = 5;
     pub const COUNT: usize = 6;
+    /// Params per effect (unused ones are zero).
+    pub const PARAM_COUNT: usize = 8;
 
     pub const DEFAULT: Effects = Effects {
         enabled: 0,
@@ -97,12 +100,12 @@ impl Effects {
             [1.00, 0.20, 0.80, 0.80], // neon
         ],
         params: [
-            [0.15, 0.45, 0.75, 0.0], // speed
-            [0.35, 8.0, 0.2, 3.0],   // firefly
-            [2.5, 0.6, 0.0, 0.45],   // snow
-            [3.0, 0.6, 1.0, 0.3],    // comet
-            [2.5, 3.3, 0.6, 0.85],   // ink
-            [1.0, 1.6, 1.0, 0.0],    // neon
+            [0.15, 0.45, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0], // speed
+            [0.35, 8.0, 0.2, 3.0, 0.0, 0.0, 0.0, 0.0],   // firefly
+            [2.5, 0.6, 0.0, 0.45, 0.3, 0.0, 0.0, 0.0],   // snow
+            [3.0, 0.6, 1.0, 0.3, 0.0, 0.0, 0.0, 0.0],    // comet
+            [2.5, 3.3, 0.6, 0.85, 0.0, 0.0, 0.0, 0.0],   // ink
+            [1.0, 1.6, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],    // neon
         ],
     };
 

@@ -150,7 +150,8 @@ public final class CustomTheme {
         return new ParamSpec("", label, min, max, steps, decimals, false, true);
     }
 
-    public static final int EFFECT_PARAM_COUNT = 4; // per effect
+    public static final int EFFECT_PARAM_COUNT = 8; // per effect (must match native)
+    private static final int EFFECT_PARAM_COUNT_V1 = 4; // in older saves
 
     // do not change the order (it must match native and saved prefs)
     public static final int EFFECT_SPEED = 0;
@@ -174,7 +175,8 @@ public final class CustomTheme {
                     lin(R.string.fx_size, 0.5f, 8.0f, 75, 1),
                     lin(R.string.fx_size_variation, 0.0f, 1.0f, 100, 2),
                     lin(R.string.fx_fall, 0.0f, 1.0f, 100, 2),
-                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2)),
+                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2),
+                    lin(R.string.fx_snow_amount, 0.0f, 1.0f, 100, 2)),
             new EffectSpec("comet", R.string.effect_comet, R.string.effect_comet_summary, R.string.gradient_comet,
                     lin(R.string.fx_head_size, 1.0f, 10.0f, 90, 1),
                     lin(R.string.fx_white_core, 0.0f, 1.0f, 100, 2),
@@ -713,9 +715,14 @@ public final class CustomTheme {
             return result;
         }
         final String[] parts = saved.split(",", -1);
-        for (int i = 0; i < result.length && i < parts.length; i++) {
+        final boolean v1 = parts.length == EFFECT_COUNT * EFFECT_PARAM_COUNT_V1; // fewer params per effect
+        for (int i = 0; i < parts.length; i++) {
+            final int index = v1 ? effectParamIndex(i / EFFECT_PARAM_COUNT_V1, i % EFFECT_PARAM_COUNT_V1) : i;
+            if (index >= result.length) {
+                break;
+            }
             try {
-                result[i] = Float.parseFloat(parts[i].trim());
+                result[index] = Float.parseFloat(parts[i].trim());
             } catch (NumberFormatException ex) {
                 Log.w(TAG, "ignoring invalid saved effect param " + parts[i]);
             }

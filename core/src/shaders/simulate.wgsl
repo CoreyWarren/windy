@@ -20,7 +20,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var new_pos = p.pos + velocity;
 
     // snow effect: flakes fall (fraction of the screen per second)
-    if (has_fx(g.effects, FX_SNOW)) {
+    if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x)) {
         new_pos.y = new_pos.y + g.fx_snow_p.z * 0.25 * g.time_delta;
     }
 

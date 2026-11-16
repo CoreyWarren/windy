@@ -30,7 +30,7 @@ const PARAM_PARTICLE_COUNT: usize = 4;
 const PARAM_PARTICLE_LIFE: usize = 5;
 const PARAM_COUNT: usize = 6;
 
-const EFFECT_PARAM_COUNT: usize = 4; // per effect
+const EFFECT_PARAM_COUNT: usize = Effects::PARAM_COUNT; // per effect
 
 struct State {
     surface: wgpu::Surface<'static>,

@@ -28,8 +28,8 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     var snow_color = vec4<f32>(0.0);
     var fly_color = vec4<f32>(0.0);
 
-    if (has_fx(g.effects, FX_SNOW)) {
-        // p: (size, size variation, fall, softness)
+    if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x)) {
+        // p: (size, size variation, fall, softness), q: (amount, -, -, -)
         let r = rand(p.uv * 3.1 + vec2<f32>(0.17));
         let variation = 1.0 + g.fx_snow_p.y * (r - 0.5) * 1.6;
         radii.x = base * g.fx_snow_p.x * max(variation, 0.1);
