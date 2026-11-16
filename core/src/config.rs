@@ -41,17 +41,18 @@ pub struct Config {
     pub effects: Effects,
 }
 
-/// Optional rendering effects, each with a two-color gradient (the alpha is
-/// the effect strength) and up to four params.
+/// Optional rendering effects, each with a gradient of 2-4 color stops which
+/// can cycle over time (the alpha is the effect strength) and params.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Effects {
     /// Bitmask of `1 << Effects::*`.
     pub enabled: u32,
-    /// The gradient start colors, indexed by `Effects::*`.
-    pub colors: [[f32; 4]; Effects::COUNT],
-    /// The gradient end colors, indexed by `Effects::*`.
-    pub colors2: [[f32; 4]; Effects::COUNT],
+    /// The gradient stops, indexed by `Effects::*` then the stop.
+    pub colors: [[[f32; 4]; Effects::MAX_STOPS]; Effects::COUNT],
     /// The params, indexed by `Effects::*`, see each effect for the meaning.
+    /// The last two of every effect are the number of gradient stops (2-4)
+    /// and the gradient cycle speed in Hz (0 to not cycle, negative to
+    /// reverse).
     pub params: [[f32; Effects::PARAM_COUNT]; Effects::COUNT],
 }
 
@@ -80,32 +81,60 @@ impl Effects {
     pub const COUNT: usize = 6;
     /// Params per effect (unused ones are zero).
     pub const PARAM_COUNT: usize = 8;
+    /// The param with the number of gradient stops.
+    pub const PARAM_STOPS: usize = 6;
+    /// The param with the gradient cycle speed.
+    pub const PARAM_CYCLE: usize = 7;
+    /// Gradient stops per effect.
+    pub const MAX_STOPS: usize = 4;
 
     pub const DEFAULT: Effects = Effects {
         enabled: 0,
         colors: [
-            [1.00, 0.55, 0.15, 0.85], // speed
-            [1.00, 0.88, 0.35, 1.00], // firefly
-            [1.00, 1.00, 1.00, 0.85], // snow
-            [0.85, 0.95, 1.00, 0.90], // comet
-            [0.55, 0.80, 1.00, 0.80], // ink
-            [0.00, 1.00, 0.85, 0.80], // neon
-        ],
-        colors2: [
-            [1.00, 0.15, 0.10, 0.95], // speed
-            [0.55, 1.00, 0.40, 1.00], // firefly
-            [0.75, 0.88, 1.00, 0.85], // snow
-            [0.40, 0.60, 1.00, 0.80], // comet
-            [1.00, 0.60, 0.85, 0.80], // ink
-            [1.00, 0.20, 0.80, 0.80], // neon
+            [
+                [1.00, 0.55, 0.15, 0.85],
+                [1.00, 0.15, 0.10, 0.95],
+                [0.90, 0.10, 0.60, 0.95],
+                [1.00, 0.90, 0.80, 1.00],
+            ], // speed
+            [
+                [1.00, 0.88, 0.35, 1.00],
+                [0.55, 1.00, 0.40, 1.00],
+                [0.30, 0.90, 1.00, 1.00],
+                [1.00, 0.50, 0.80, 1.00],
+            ], // firefly
+            [
+                [1.00, 1.00, 1.00, 0.85],
+                [0.75, 0.88, 1.00, 0.85],
+                [0.85, 0.80, 1.00, 0.85],
+                [0.70, 1.00, 1.00, 0.85],
+            ], // snow
+            [
+                [0.85, 0.95, 1.00, 0.90],
+                [0.40, 0.60, 1.00, 0.80],
+                [0.70, 0.40, 1.00, 0.90],
+                [1.00, 0.85, 0.40, 0.90],
+            ], // comet
+            [
+                [0.55, 0.80, 1.00, 0.80],
+                [1.00, 0.60, 0.85, 0.80],
+                [1.00, 0.85, 0.40, 0.80],
+                [0.50, 1.00, 0.75, 0.80],
+            ], // ink
+            [
+                [0.00, 1.00, 0.85, 0.80],
+                [1.00, 0.20, 0.80, 0.80],
+                [1.00, 0.95, 0.20, 0.80],
+                [0.20, 0.40, 1.00, 0.80],
+            ], // neon
         ],
         params: [
-            [0.15, 0.45, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0], // speed
-            [0.35, 8.0, 0.2, 3.0, 0.0, 0.0, 0.0, 0.0],   // firefly
-            [2.5, 0.6, 0.0, 0.45, 0.3, 0.0, 0.0, 0.0],   // snow
-            [3.0, 0.6, 1.0, 0.3, 0.0, 0.0, 0.0, 0.0],    // comet
-            [2.5, 3.3, 0.6, 0.85, 0.0, 0.0, 0.0, 0.0],   // ink
-            [1.0, 1.6, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],    // neon
+            [0.15, 0.45, 0.75, 0.0, 0.0, 0.0, 2.0, 0.0], // speed
+            [0.35, 8.0, 0.2, 3.0, 0.0, 0.0, 2.0, 0.0],   // firefly
+            [2.5, 0.6, 0.0, 0.45, 0.3, 0.0, 2.0, 0.0],   // snow
+            [3.0, 0.6, 1.0, 0.3, 0.0, 0.0, 2.0, 0.0],    // comet
+            [2.5, 3.3, 0.6, 0.85, 0.0, 0.0, 2.0, 0.0],   // ink
+            [1.0, 1.6, 1.0, 0.0, 0.0, 0.0, 2.0, 0.0],    // neon
         ],
     };
 

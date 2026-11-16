@@ -60,8 +60,8 @@ public final class WindyWallpaperNative implements AutoCloseable {
     /**
      * Replaces the effects, with enabled being a bitmask of
      * {@code 1 << CustomTheme.EFFECT_*}, the colors (packed 0xAARRGGBB, the
-     * alpha is the strength) being the gradient starts then ends indexed by
-     * {@code CustomTheme.EFFECT_*}, and the params being
+     * alpha is the strength) being the gradient stops indexed by
+     * {@code CustomTheme.effectColorIndex}, and the params being
      * {@code CustomTheme.EFFECT_PARAM_COUNT} per effect.
      */
     public void setEffects(int enabled, int[] colors, float[] params) {
@@ -120,9 +120,9 @@ public final class WindyWallpaperNative implements AutoCloseable {
         return nativeCoordinateBounds(lng, lat, aspect);
     }
 
-    /** The default gradient start or end color for an effect (packed 0xAARRGGBB). */
-    public static int effectColor(int effect, boolean end) {
-        return nativeEffectColor(effect, end ? 1 : 0);
+    /** The default color of an effect gradient stop (packed 0xAARRGGBB). */
+    public static int effectColor(int effect, int stop) {
+        return nativeEffectColor(effect, stop);
     }
 
     /** The default value of an effect param. */
@@ -152,7 +152,7 @@ public final class WindyWallpaperNative implements AutoCloseable {
     private static native void nativeSetUserLocation(long handle, float lng, float lat);
     private static native void nativeSetCustom(long handle, int[] colors, float[] params);
     private static native void nativeSetEffects(long handle, int enabled, int[] colors, float[] params);
-    private static native int nativeEffectColor(int effect, int end);
+    private static native int nativeEffectColor(int effect, int stop);
     private static native float nativeEffectParam(int effect, int param);
     private static native void nativeSetWindField(long handle, byte[] rgba, int width, int height);
     private static native String nativeGpuModel(long handle);

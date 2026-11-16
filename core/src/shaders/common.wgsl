@@ -9,29 +9,42 @@ struct Globals {
     bg_color2: vec4<f32>,
     color_slow: vec4<f32>,
     color_fast: vec4<f32>,
-    // effects: _a/_b are the gradient colors (alpha is the strength), _p/_q the params
+    // effects: _a.._d are the gradient stops (alpha is the strength), _p/_q the
+    // params (q.z is the number of stops, q.w the cycle speed)
     fx_speed_a: vec4<f32>,
     fx_speed_b: vec4<f32>,
+    fx_speed_c: vec4<f32>,
+    fx_speed_d: vec4<f32>,
     fx_speed_p: vec4<f32>,
     fx_speed_q: vec4<f32>,
     fx_firefly_a: vec4<f32>,
     fx_firefly_b: vec4<f32>,
+    fx_firefly_c: vec4<f32>,
+    fx_firefly_d: vec4<f32>,
     fx_firefly_p: vec4<f32>,
     fx_firefly_q: vec4<f32>,
     fx_snow_a: vec4<f32>,
     fx_snow_b: vec4<f32>,
+    fx_snow_c: vec4<f32>,
+    fx_snow_d: vec4<f32>,
     fx_snow_p: vec4<f32>,
     fx_snow_q: vec4<f32>,
     fx_comet_a: vec4<f32>,
     fx_comet_b: vec4<f32>,
+    fx_comet_c: vec4<f32>,
+    fx_comet_d: vec4<f32>,
     fx_comet_p: vec4<f32>,
     fx_comet_q: vec4<f32>,
     fx_ink_a: vec4<f32>,
     fx_ink_b: vec4<f32>,
+    fx_ink_c: vec4<f32>,
+    fx_ink_d: vec4<f32>,
     fx_ink_p: vec4<f32>,
     fx_ink_q: vec4<f32>,
     fx_neon_a: vec4<f32>,
     fx_neon_b: vec4<f32>,
+    fx_neon_c: vec4<f32>,
+    fx_neon_d: vec4<f32>,
     fx_neon_p: vec4<f32>,
     fx_neon_q: vec4<f32>,
     size: vec2<f32>,        // android home screen parallax scale (x, y)
@@ -70,6 +83,39 @@ const FX_NEON: u32 = 32u;
 
 fn has_fx(effects: u32, bit: u32) -> bool {
     return (effects & bit) != 0u;
+}
+
+fn fx_stop(c0: vec4<f32>, c1: vec4<f32>, c2: vec4<f32>, c3: vec4<f32>, i: f32) -> vec4<f32> {
+    if (i < 0.5) {
+        return c0;
+    }
+    if (i < 1.5) {
+        return c1;
+    }
+    if (i < 2.5) {
+        return c2;
+    }
+    return c3;
+}
+
+// effect color at t in [0,1] along the gradient stops c0..c3 (q.z of them).
+// with a cycle speed (q.w, in Hz), the stops loop around and scroll over time
+// (whole cycles per 64s so the wrapped time doesn't cause a jump).
+fn fx_gradient(c0: vec4<f32>, c1: vec4<f32>, c2: vec4<f32>, c3: vec4<f32>, q: vec4<f32>, time: f32, t: f32) -> vec4<f32> {
+    let n = clamp(round(q.z), 2.0, 4.0);
+    let k = round(q.w * 64.0);
+    var x = clamp(t, 0.0, 1.0) * (n - 1.0);
+    var looped = false;
+    if (k != 0.0) {
+        x = fract(t + time * k / 64.0) * n;
+        looped = true;
+    }
+    let i = min(floor(x), n - 1.0);
+    var j = i + 1.0;
+    if (j > n - 0.5) {
+        j = select(n - 1.0, 0.0, looped);
+    }
+    return mix(fx_stop(c0, c1, c2, c3, i), fx_stop(c0, c1, c2, c3, j), clamp(x - i, 0.0, 1.0));
 }
 
 // snow effect: whether a particle is a flake instead of a streak

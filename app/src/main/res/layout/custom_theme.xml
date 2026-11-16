@@ -35,6 +35,17 @@
             android:visibility="gone" />
 
         <Button
+            android:id="@+id/preset_share"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="@string/share"
+            android:textAllCaps="false" />
+
+        <Button
             android:id="@+id/preset_save"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="wrap_content"

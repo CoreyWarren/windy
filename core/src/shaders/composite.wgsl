@@ -39,7 +39,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     // ink effect: the strokes take on the ink color (calm to fast gradient)
     if (has_fx(g.effects, FX_INK)) {
-        let ink = mix(g.fx_ink_a, g.fx_ink_b, speed);
+        let ink = fx_gradient(g.fx_ink_a, g.fx_ink_b, g.fx_ink_c, g.fx_ink_d, g.fx_ink_q, g.time_acc, speed);
         particle_color = vec4<f32>(
             mix(particle_color.rgb, ink.rgb, ink.a),
             mix(particle_color.a, g.fx_ink_p.w, ink.a), // density
@@ -49,7 +49,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // speed color effect: gusts take on the speed color (gust to max gradient)
     if (has_fx(g.effects, FX_SPEED)) {
         let w = clamp(trail.b / max(trail.g, 1e-4), 0.0, 1.0);
-        let tint = mix(g.fx_speed_a, g.fx_speed_b, w);
+        let tint = fx_gradient(g.fx_speed_a, g.fx_speed_b, g.fx_speed_c, g.fx_speed_d, g.fx_speed_q, g.time_acc, w);
         let amount = smoothstep(0.0, 0.25, w) * tint.a;
         particle_color = vec4<f32>(
             mix(particle_color.rgb, tint.rgb, amount),
@@ -62,7 +62,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     // neon effect: a soft glow around the streamlines (calm to fast gradient)
     if (has_fx(g.effects, FX_NEON)) {
-        let neon = mix(g.fx_neon_a, g.fx_neon_b, speed);
+        let neon = fx_gradient(g.fx_neon_a, g.fx_neon_b, g.fx_neon_c, g.fx_neon_d, g.fx_neon_q, g.time_acc, speed);
         // pulse: whole cycles per 64s so the wrapped time doesn't jump
         let pulse = 1.0 - g.fx_neon_p.w * 0.5 * (1.0 + sin(g.time_acc * (2.0 * PI / 8.0)));
         rgb = rgb + neon.rgb * neon_glow(t) * neon.a * g.fx_neon_p.y * pulse; // brightness

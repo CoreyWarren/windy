@@ -151,6 +151,13 @@ public final class CustomTheme {
     }
 
     public static final int EFFECT_PARAM_COUNT = 8; // per effect (must match native)
+    public static final int EFFECT_PARAM_STOPS = 6; // number of gradient stops (must match native)
+    public static final int EFFECT_PARAM_CYCLE = 7; // gradient cycle speed in Hz (must match native)
+    public static final int MIN_STOPS = 2;
+    public static final int MAX_STOPS = 4; // must match native
+
+    /** The gradient cycle speed (negative reverses, whole cycles per 64s). */
+    public static final ParamSpec CYCLE_SPEC = lin(R.string.fx_cycle, -1.0f, 1.0f, 128, 2);
     private static final int EFFECT_PARAM_COUNT_V1 = 4; // in older saves
 
     // do not change the order (it must match native and saved prefs)
@@ -288,8 +295,8 @@ public final class CustomTheme {
     }
 
     /**
-     * The effect gradient colors (packed 0xAARRGGBB, the alpha is the
-     * strength), the starts then the ends, see {@link #effectColorIndex}.
+     * The effect gradient stops (packed 0xAARRGGBB, the alpha is the
+     * strength), see {@link #effectColorIndex}.
      */
     public static int[] effectColors(Context context) {
         int[] current = effectColors;
@@ -305,19 +312,41 @@ public final class CustomTheme {
         return current.clone();
     }
 
-    public static int effectColorIndex(int effect, boolean end) {
-        return end ? EFFECT_COUNT + effect : effect;
+    // stops first so older saves (with only the first two) still line up
+    public static int effectColorIndex(int effect, int stop) {
+        return stop * EFFECT_COUNT + effect;
     }
 
-    public static int effectColor(Context context, int effect, boolean end) {
-        return effectColors(context)[effectColorIndex(effect, end)];
+    public static int effectColor(Context context, int effect, int stop) {
+        return effectColors(context)[effectColorIndex(effect, stop)];
+    }
+
+    /** The colors of the gradient stops in use. */
+    public static int[] effectGradient(Context context, int effect) {
+        final int[] colors = effectColors(context);
+        final int[] result = new int[effectStops(context, effect)];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = colors[effectColorIndex(effect, i)];
+        }
+        return result;
+    }
+
+    /** The number of gradient stops in use. */
+    public static int effectStops(Context context, int effect) {
+        final int stops = Math.round(effectParam(context, effect, EFFECT_PARAM_STOPS));
+        return Math.max(MIN_STOPS, Math.min(MAX_STOPS, stops)); // older saves have 0
+    }
+
+    public static void setEffectStops(Context context, int effect, int stops, boolean persist) {
+        setEffectParam(context, effect, EFFECT_PARAM_STOPS, Math.max(MIN_STOPS, Math.min(MAX_STOPS, stops)), persist);
     }
 
     public static int[] defaultEffectColors() {
-        final int[] result = new int[EFFECT_COUNT * 2];
+        final int[] result = new int[EFFECT_COUNT * MAX_STOPS];
         for (int i = 0; i < EFFECT_COUNT; i++) {
-            result[effectColorIndex(i, false)] = WindyWallpaperNative.effectColor(i, false);
-            result[effectColorIndex(i, true)] = WindyWallpaperNative.effectColor(i, true);
+            for (int s = 0; s < MAX_STOPS; s++) {
+                result[effectColorIndex(i, s)] = WindyWallpaperNative.effectColor(i, s);
+            }
         }
         return result;
     }
@@ -362,8 +391,8 @@ public final class CustomTheme {
      */
     public static void setEffects(Context context, int nextEffects, int[] nextColors, float[] nextParams, boolean persist) {
         if (nextColors != null) {
-            if (nextColors.length != EFFECT_COUNT * 2) {
-                throw new IllegalArgumentException("expected " + EFFECT_COUNT * 2 + " effect colors");
+            if (nextColors.length != EFFECT_COUNT * MAX_STOPS) {
+                throw new IllegalArgumentException("expected " + EFFECT_COUNT * MAX_STOPS + " effect colors");
             }
             effectColors = nextColors.clone();
         }
@@ -388,9 +417,9 @@ public final class CustomTheme {
         }
     }
 
-    public static void setEffectColor(Context context, int effect, boolean end, int argb, boolean persist) {
+    public static void setEffectColor(Context context, int effect, int stop, int argb, boolean persist) {
         final int[] next = effectColors(context);
-        final int index = effectColorIndex(effect, end);
+        final int index = effectColorIndex(effect, stop);
         if (next[index] == argb) {
             return;
         }
@@ -412,8 +441,9 @@ public final class CustomTheme {
     public static void resetEffect(Context context, int effect, boolean persist) {
         final int[] colors = effectColors(context);
         final int[] defaultColors = defaultEffectColors();
-        colors[effectColorIndex(effect, false)] = defaultColors[effectColorIndex(effect, false)];
-        colors[effectColorIndex(effect, true)] = defaultColors[effectColorIndex(effect, true)];
+        for (int s = 0; s < MAX_STOPS; s++) {
+            colors[effectColorIndex(effect, s)] = defaultColors[effectColorIndex(effect, s)];
+        }
         final float[] params = effectParams(context);
         final float[] defaultParams = defaultEffectParams();
         for (int p = 0; p < EFFECT_PARAM_COUNT; p++) {
@@ -538,6 +568,12 @@ public final class CustomTheme {
         /**
          * Whether the current colors and params still match this preset.
          */
+        boolean sameLook(Preset other) {
+            return Arrays.equals(colors, other.colors) && Arrays.equals(params, other.params)
+                    && effects == other.effects && Arrays.equals(effectColors, other.effectColors)
+                    && Arrays.equals(effectParams, other.effectParams);
+        }
+
         public boolean matches(Context context) {
             return Arrays.equals(colors, colors(context)) && Arrays.equals(params, params(context))
                     && effects == effects(context) && Arrays.equals(effectColors, effectColors(context))
@@ -554,25 +590,150 @@ public final class CustomTheme {
         try {
             final JSONArray arr = new JSONArray(saved);
             for (int i = 0; i < arr.length(); i++) {
-                final JSONObject obj = arr.getJSONObject(i);
-                final String name = obj.optString("name", "").trim();
-                if (!name.isEmpty()) {
-                    // presets saved before the params existed use the defaults
-                    final float[] params = themeParams(Themes.CUSTOM);
-                    for (int p = 0; p < PARAM_COUNT; p++) {
-                        params[p] = (float) obj.optDouble(PARAMS[p].key, params[p]);
-                    }
-                    // presets saved before the effects existed have none
-                    final int effects = obj.optInt("effects", 0) & EFFECT_MASK;
-                    final int[] effectColors = parseEffectColors(obj.optString("effect_colors", null));
-                    final float[] effectParams = parseEffectParams(obj.optString("effect_params", null));
-                    presets.add(new Preset(name, parseColors(obj.optString("colors", null)), params, effects, effectColors, effectParams));
+                final Preset preset = presetFromJson(arr.getJSONObject(i), "");
+                if (!preset.name.isEmpty()) {
+                    presets.add(preset);
                 }
             }
         } catch (JSONException ex) {
             Log.w(TAG, "ignoring corrupt presets: " + ex);
         }
         return presets;
+    }
+
+    private static Preset presetFromJson(JSONObject obj, String fallbackName) {
+        String name = normalizeName(obj.optString("name", ""));
+        if (name.isEmpty()) {
+            name = normalizeName(fallbackName);
+        }
+        // presets saved before the params existed use the defaults
+        final float[] params = themeParams(Themes.CUSTOM);
+        for (int p = 0; p < PARAM_COUNT; p++) {
+            params[p] = (float) obj.optDouble(PARAMS[p].key, params[p]);
+        }
+        // presets saved before the effects existed have none
+        final int effects = obj.optInt("effects", 0) & EFFECT_MASK;
+        final int[] effectColors = parseEffectColors(obj.optString("effect_colors", null));
+        final float[] effectParams = parseEffectParams(obj.optString("effect_params", null));
+        return new Preset(name, parseColors(obj.optString("colors", null)), params, effects, effectColors, effectParams);
+    }
+
+    private static JSONObject presetToJson(Preset preset) throws JSONException {
+        final JSONObject obj = new JSONObject();
+        obj.put("name", preset.name);
+        obj.put("colors", formatColors(preset.colors));
+        for (int p = 0; p < PARAM_COUNT; p++) {
+            obj.put(PARAMS[p].key, (double) preset.params[p]);
+        }
+        obj.put("effects", preset.effects);
+        obj.put("effect_colors", formatColors(preset.effectColors));
+        obj.put("effect_params", formatParams(preset.effectParams));
+        return obj;
+    }
+
+    private static final String EXPORT_KEY = "windyfx"; // marks (and versions) exported codes
+
+    /**
+     * Exports the current look (named after the selected preset, if any) or
+     * all saved presets as a text code for {@link #importCode}.
+     */
+    public static String exportCode(Context context, boolean all) {
+        final List<Preset> presets = new ArrayList<>();
+        if (all) {
+            presets.addAll(presets(context));
+        } else {
+            presets.add(new Preset(presetName(context), colors(context), params(context), effects(context), effectColors(context), effectParams(context)));
+        }
+        try {
+            final JSONArray arr = new JSONArray();
+            for (final Preset preset : presets) {
+                arr.put(presetToJson(preset));
+            }
+            final JSONObject obj = new JSONObject();
+            obj.put(EXPORT_KEY, 1);
+            obj.put("presets", arr);
+            return obj.toString();
+        } catch (JSONException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    /**
+     * Imports a code from {@link #exportCode} (surrounding text is ignored),
+     * saving each look as a preset (renaming it if a different one has the
+     * same name) and switching to the first. Returns the number imported, or
+     * -1 if the code isn't valid.
+     */
+    public static int importCode(Context context, String code) {
+        if (code == null) {
+            return -1;
+        }
+        final int start = code.indexOf('{');
+        final int end = code.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return -1;
+        }
+        final List<Preset> imported = new ArrayList<>();
+        try {
+            final JSONObject obj = new JSONObject(code.substring(start, end + 1));
+            final JSONArray arr = obj.optJSONArray("presets");
+            if (arr != null) {
+                for (int i = 0; i < arr.length(); i++) {
+                    imported.add(presetFromJson(arr.getJSONObject(i), "Imported"));
+                }
+            } else if (obj.has("colors")) {
+                imported.add(presetFromJson(obj, "Imported"));
+            }
+        } catch (JSONException ex) {
+            Log.w(TAG, "invalid import code: " + ex);
+            return -1;
+        }
+        if (imported.isEmpty()) {
+            return -1;
+        }
+
+        final List<Preset> presets = presets(context);
+        final List<String> names = new ArrayList<>();
+        for (final Preset preset : imported) {
+            final String base = preset.name.length() > MAX_NAME_LENGTH - 6
+                    ? preset.name.substring(0, MAX_NAME_LENGTH - 6).trim()
+                    : preset.name;
+            String name = preset.name;
+            for (int n = 2; n < 1000; n++) {
+                final Preset existing = findPreset(presets, name);
+                if (existing == null || existing.sameLook(preset)) {
+                    break;
+                }
+                name = normalizeName(base + " (" + n + ")");
+            }
+            final Preset renamed = new Preset(name, preset.colors, preset.params, preset.effects, preset.effectColors, preset.effectParams);
+            final Preset existing = findPreset(presets, name);
+            if (existing != null) {
+                presets.set(presets.indexOf(existing), renamed);
+            } else {
+                presets.add(renamed);
+            }
+            names.add(name);
+        }
+        while (presets.size() > MAX_PRESETS) {
+            final Preset oldest = presets.get(0);
+            if (names.contains(oldest.name)) {
+                break; // don't drop what was just imported
+            }
+            presets.remove(0);
+        }
+        writePresets(context, presets, presetName(context));
+        loadPreset(context, names.get(0));
+        return imported.size();
+    }
+
+    private static Preset findPreset(List<Preset> presets, String name) {
+        for (final Preset preset : presets) {
+            if (preset.name.equals(name)) {
+                return preset;
+            }
+        }
+        return null;
     }
 
     public static Preset preset(Context context, String name) {
@@ -652,16 +813,7 @@ public final class CustomTheme {
         final JSONArray arr = new JSONArray();
         try {
             for (final Preset preset : presets) {
-                final JSONObject obj = new JSONObject();
-                obj.put("name", preset.name);
-                obj.put("colors", formatColors(preset.colors));
-                for (int p = 0; p < PARAM_COUNT; p++) {
-                    obj.put(PARAMS[p].key, (double) preset.params[p]);
-                }
-                obj.put("effects", preset.effects);
-                obj.put("effect_colors", formatColors(preset.effectColors));
-                obj.put("effect_params", formatParams(preset.effectParams));
-                arr.put(obj);
+                arr.put(presetToJson(preset));
             }
         } catch (JSONException ex) {
             Log.e(TAG, "failed to save presets", ex);

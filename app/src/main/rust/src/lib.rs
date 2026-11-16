@@ -344,7 +344,7 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetEffe
     let st = unsafe { state(handle) };
     env.with_env(|env| {
         // with_env catches panics
-        let mut colors_buf = [0 as jint; Effects::COUNT * 2]; // starts, then ends
+        let mut colors_buf = [0 as jint; Effects::COUNT * Effects::MAX_STOPS]; // [stop * COUNT + effect]
         let mut params_buf = [0 as jfloat; Effects::COUNT * EFFECT_PARAM_COUNT];
         colors.get_region(env, 0, &mut colors_buf)?;
         params.get_region(env, 0, &mut params_buf)?;
@@ -353,8 +353,9 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetEffe
         let fx = &mut config.effects;
         fx.enabled = enabled as u32;
         for i in 0..Effects::COUNT {
-            fx.colors[i] = unpack_argb(colors_buf[i]);
-            fx.colors2[i] = unpack_argb(colors_buf[Effects::COUNT + i]);
+            for s in 0..Effects::MAX_STOPS {
+                fx.colors[i][s] = unpack_argb(colors_buf[s * Effects::COUNT + i]);
+            }
             for j in 0..EFFECT_PARAM_COUNT {
                 fx.params[i][j] = params_buf[i * EFFECT_PARAM_COUNT + j];
             }
@@ -372,15 +373,11 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeEffectC
     _env: EnvUnowned,
     _class: JClass,
     effect: jint,
-    end: jint, // 0 for the start color
+    stop: jint,
 ) -> jint {
     let effect = (effect.max(0) as usize).min(Effects::COUNT - 1);
-    let colors = if end != 0 {
-        &Effects::DEFAULT.colors2
-    } else {
-        &Effects::DEFAULT.colors
-    };
-    pack_argb(colors[effect])
+    let stop = (stop.max(0) as usize).min(Effects::MAX_STOPS - 1);
+    pack_argb(Effects::DEFAULT.colors[effect][stop])
 }
 
 #[unsafe(no_mangle)]

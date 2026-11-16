@@ -28,8 +28,7 @@ public class ColorSwatchView extends View {
     private final float radius;
 
     private int color = Color.TRANSPARENT;
-    private int endColor = Color.TRANSPARENT;
-    private boolean gradient;
+    private int[] gradient; // null for a single color
 
     public ColorSwatchView(Context context) {
         this(context, null);
@@ -46,19 +45,22 @@ public class ColorSwatchView extends View {
     }
 
     public void setColor(int color) {
-        if (this.color != color || gradient) {
+        if (this.color != color || gradient != null) {
             this.color = color;
-            this.gradient = false;
+            this.gradient = null;
             invalidate();
         }
     }
 
     /** Shows a left-to-right gradient instead of a single color. */
-    public void setGradient(int start, int end) {
-        if (this.color != start || this.endColor != end || !gradient) {
-            this.color = start;
-            this.endColor = end;
-            this.gradient = true;
+    public void setGradient(int... colors) {
+        if (colors.length < 2) {
+            setColor(colors.length == 0 ? Color.TRANSPARENT : colors[0]);
+            return;
+        }
+        if (gradient == null || !java.util.Arrays.equals(gradient, colors)) {
+            this.color = colors[0];
+            this.gradient = colors.clone();
             invalidate();
         }
     }
@@ -71,12 +73,12 @@ public class ColorSwatchView extends View {
     protected void onDraw(Canvas canvas) {
         final float inset = borderPaint.getStrokeWidth() / 2;
         bounds.set(inset, inset, getWidth() - inset, getHeight() - inset);
-        if (Color.alpha(color) != 0xFF || (gradient && Color.alpha(endColor) != 0xFF)) {
+        if (Color.alpha(color) != 0xFF || hasTranslucentStop()) {
             canvas.drawRoundRect(bounds, radius, radius, checkerPaint);
         }
-        fillPaint.setColor(gradient ? Color.WHITE : color);
-        fillPaint.setShader(gradient
-                ? new LinearGradient(bounds.left, 0, bounds.right, 0, color, endColor, Shader.TileMode.CLAMP)
+        fillPaint.setColor(gradient != null ? Color.WHITE : color);
+        fillPaint.setShader(gradient != null
+                ? new LinearGradient(bounds.left, 0, bounds.right, 0, gradient, null, Shader.TileMode.CLAMP)
                 : null);
         canvas.drawRoundRect(bounds, radius, radius, fillPaint);
         canvas.drawRoundRect(bounds, radius, radius, borderPaint);
@@ -92,5 +94,16 @@ public class ColorSwatchView extends View {
         canvas.drawRect(0, 0, cell, cell, paint);
         canvas.drawRect(cell, cell, cell * 2, cell * 2, paint);
         return bitmap;
+    }
+
+    private boolean hasTranslucentStop() {
+        if (gradient != null) {
+            for (final int c : gradient) {
+                if (Color.alpha(c) != 0xFF) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

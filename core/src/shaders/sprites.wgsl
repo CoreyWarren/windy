@@ -13,6 +13,8 @@ struct VsOut {
     @location(2) weight: vec3<f32>,     // (snow, comet, firefly) opacity
     @location(3) snow_color: vec4<f32>, // this flake's gradient color
     @location(4) fly_color: vec4<f32>,  // this firefly's gradient color
+    @location(5) head_color: vec4<f32>, // this comet's head gradient color
+    @location(6) halo_color: vec4<f32>, // this comet's halo gradient color
 };
 
 @vertex
@@ -27,20 +29,26 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     var weight = vec3<f32>(0.0);
     var snow_color = vec4<f32>(0.0);
     var fly_color = vec4<f32>(0.0);
+    var head_color = vec4<f32>(0.0);
+    var halo_color = vec4<f32>(0.0);
 
     if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x)) {
         // p: (size, size variation, fall, softness), q: (amount, -, -, -)
         let r = rand(p.uv * 3.1 + vec2<f32>(0.17));
         let variation = 1.0 + g.fx_snow_p.y * (r - 0.5) * 1.6;
         radii.x = base * g.fx_snow_p.x * max(variation, 0.1);
-        snow_color = mix(g.fx_snow_a, g.fx_snow_b, rand(p.uv * 4.7 + vec2<f32>(0.53)));
+        snow_color = fx_gradient(g.fx_snow_a, g.fx_snow_b, g.fx_snow_c, g.fx_snow_d, g.fx_snow_q, g.time_acc, rand(p.uv * 4.7 + vec2<f32>(0.53)));
         weight.x = life * snow_color.a;
     }
     if (has_fx(g.effects, FX_COMET)) {
         // p: (head size, white core, tail length, halo)
         radii.y = base * g.fx_comet_p.x;
         radii.w = select(0.0, radii.y * mix(1.5, 5.0, g.fx_comet_p.w), g.fx_comet_p.w > 0.0);
-        weight.y = life * g.fx_comet_a.a;
+        // head and halo from opposite ends of the gradient
+        let r = rand(p.uv * 8.3 + vec2<f32>(0.29));
+        head_color = fx_gradient(g.fx_comet_a, g.fx_comet_b, g.fx_comet_c, g.fx_comet_d, g.fx_comet_q, g.time_acc, r);
+        halo_color = fx_gradient(g.fx_comet_a, g.fx_comet_b, g.fx_comet_c, g.fx_comet_d, g.fx_comet_q, g.time_acc, 1.0 - r);
+        weight.y = life * head_color.a;
     }
     if (has_fx(g.effects, FX_FIREFLY) && rand(p.uv * 7.7 + vec2<f32>(0.31)) < g.fx_firefly_p.x) {
         // p: (amount, size, pulse rate in Hz, pulse sharpness)
@@ -50,7 +58,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
         let phase = rand(p.uv * 9.1) * 2.0 * PI;
         let flicker = pow(max(sin(g.time_acc * freq + phase), 0.0), max(g.fx_firefly_p.w, 0.1));
         radii.z = base * g.fx_firefly_p.y;
-        fly_color = mix(g.fx_firefly_a, g.fx_firefly_b, rand(p.uv * 6.3 + vec2<f32>(0.71)));
+        fly_color = fx_gradient(g.fx_firefly_a, g.fx_firefly_b, g.fx_firefly_c, g.fx_firefly_d, g.fx_firefly_q, g.time_acc, rand(p.uv * 6.3 + vec2<f32>(0.71)));
         weight.z = life * flicker * fly_color.a;
     }
 
@@ -78,6 +86,8 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     out.weight = weight;
     out.snow_color = snow_color;
     out.fly_color = fly_color;
+    out.head_color = head_color;
+    out.halo_color = halo_color;
     return out;
 }
 
@@ -100,13 +110,13 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let n = d / in.radii.y;
         let hot = exp(-30.0 * n * n);
         let k = (exp(-4.0 * n * n) + 0.6 * hot) * in.weight.y;
-        let head = mix(g.fx_comet_a.rgb, vec3<f32>(1.0), hot * g.fx_comet_p.y);
+        let head = mix(in.head_color.rgb, vec3<f32>(1.0), hot * g.fx_comet_p.y);
         rgb = rgb + head * k;
         a = a + k;
         if (in.radii.w > 0.0) {
             let h = d / in.radii.w;
-            let kh = exp(-5.0 * h * h) * 0.35 * g.fx_comet_b.a * in.weight.y;
-            rgb = rgb + g.fx_comet_b.rgb * kh;
+            let kh = exp(-5.0 * h * h) * 0.35 * in.halo_color.a * in.weight.y;
+            rgb = rgb + in.halo_color.rgb * kh;
             a = a + kh * 0.5;
         }
     }
