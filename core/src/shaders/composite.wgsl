@@ -35,10 +35,34 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     // streamlines
     let trail = textureSample(trail_tex, trail_samp, t);
-    let particle_color = mix(g.color_slow, g.color_fast, trail.r);
+    var particle_color = mix(g.color_slow, g.color_fast, trail.r);
+
+    // ink effect: the strokes take on the ink color and get denser
+    if (has_fx(g.effects, FX_INK)) {
+        particle_color = vec4<f32>(
+            mix(particle_color.rgb, g.fx_ink.rgb, g.fx_ink.a),
+            mix(particle_color.a, 0.85, g.fx_ink.a),
+        );
+    }
+
+    // speed color effect: gusts take on the speed color
+    if (has_fx(g.effects, FX_SPEED)) {
+        let w = clamp(trail.b / max(trail.g, 1e-4), 0.0, 1.0) * g.fx_speed.a;
+        particle_color = vec4<f32>(
+            mix(particle_color.rgb, g.fx_speed.rgb, w),
+            mix(particle_color.a, max(particle_color.a, 0.75), w),
+        );
+    }
 
     // discard the alpha to match how the original one is rendered
-    var out = vec4<f32>(mix(bg, particle_color, particle_color.a * trail.g).rgb, 1.0);
+    var rgb = mix(bg, particle_color, particle_color.a * trail.g).rgb;
+
+    // neon effect: a soft glow around the streamlines
+    if (has_fx(g.effects, FX_NEON)) {
+        rgb = rgb + g.fx_neon.rgb * neon_glow(t) * g.fx_neon.a * 1.6;
+    }
+
+    var out = vec4<f32>(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
 
     // fix colors on srgb targets
     if (g.srgb_output != 0u) {
@@ -47,8 +71,18 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return out;
 }
 
-fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
-    let low = c / 12.92;
-    let high = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
-    return select(high, low, c <= vec3<f32>(0.04045));
+// blurred trail coverage around t (two rings of taps)
+fn neon_glow(t: vec2<f32>) -> f32 {
+    let texel = 1.0 / g.trail_size;
+    let r1 = max(g.line_half_width * 3.0, 2.0);
+    let r2 = max(g.line_half_width * 7.0, 5.0);
+    var sum = 0.0;
+    for (var i = 0; i < 8; i = i + 1) {
+        let a = f32(i) * (PI / 4.0);
+        let d = vec2<f32>(cos(a), sin(a));
+        sum = sum + textureSampleLevel(trail_tex, trail_samp, t + d * r1 * texel, 0.0).g * 0.6;
+        let d2 = vec2<f32>(cos(a + PI / 8.0), sin(a + PI / 8.0));
+        sum = sum + textureSampleLevel(trail_tex, trail_samp, t + d2 * r2 * texel, 0.0).g * 0.4;
+    }
+    return sum / 8.0;
 }

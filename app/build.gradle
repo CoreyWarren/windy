@@ -30,7 +30,23 @@ android {
         }
     }
 
+    signingConfigs {
+        // a fixed debug key (instead of the per-machine one) so each github
+        // actions build installs over the last one
+        debug {
+            storeFile file('fx-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
+        debug {
+            // install alongside the official app
+            applicationIdSuffix '.fx'
+            versionNameSuffix '-fx'
+        }
         eng {
             signingConfig = signingConfigs.debug
             buildConfigField "long", "WIND_FIELD_UPDATE_INTERVAL", "15" // min

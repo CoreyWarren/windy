@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="?android:attr/textColorPrimary"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- a large and a small four-point sparkle -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10,3 L11.6,8.4 L17,10 L11.6,11.6 L10,17 L8.4,11.6 L3,10 L8.4,8.4 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M18,14 L18.9,17.1 L22,18 L18.9,18.9 L18,22 L17.1,18.9 L14,18 L17.1,17.1 Z" />
+</vector>

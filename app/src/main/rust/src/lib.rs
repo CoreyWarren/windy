@@ -12,7 +12,7 @@ use raw_window_handle::{
     AndroidDisplayHandle, AndroidNdkWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 use windy_wallpaper_core::{
-    Config, Renderer, Style, Theme, ThemeColors, ThemeParams, ThemeSource, generate,
+    Config, Effects, Renderer, Style, Theme, ThemeColors, ThemeParams, ThemeSource, generate,
 };
 
 // must match net.pgaskin.windy.CustomTheme
@@ -321,6 +321,46 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetCust
         Ok::<(), jni::errors::Error>(()) // leave unchanged on error
     })
     .resolve::<LogErrorAndDefault>();
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetEffects(
+    mut env: EnvUnowned,
+    _class: JClass,
+    handle: jlong,
+    enabled: jint,
+    colors: JIntArray,
+) {
+    if handle == 0 {
+        return;
+    }
+    let st = unsafe { state(handle) };
+    env.with_env(|env| {
+        // with_env catches panics
+        let mut colors_buf = [0 as jint; Effects::COUNT];
+        colors.get_region(env, 0, &mut colors_buf)?;
+
+        let mut config = st.renderer.config().clone();
+        config.effects.enabled = enabled as u32;
+        for (dst, src) in config.effects.colors.iter_mut().zip(colors_buf) {
+            *dst = unpack_argb(src);
+        }
+        if config.effects != st.renderer.config().effects {
+            st.renderer.set_config(&st.device, config);
+        }
+        Ok::<(), jni::errors::Error>(()) // leave unchanged on error
+    })
+    .resolve::<LogErrorAndDefault>();
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeEffectColor(
+    _env: EnvUnowned,
+    _class: JClass,
+    effect: jint,
+) -> jint {
+    let effect = (effect.max(0) as usize).min(Effects::COUNT - 1);
+    pack_argb(Effects::DEFAULT.colors[effect])
 }
 
 #[unsafe(no_mangle)]

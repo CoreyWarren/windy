@@ -289,6 +289,7 @@ public abstract class WindyWallpaperRenderer extends Thread {
             return;
         }
         renderer.setCustom(CustomTheme.colors(context), CustomTheme.params(context));
+        renderer.setEffects(CustomTheme.effects(context), CustomTheme.effectColors(context));
         customSeq = seq;
     }
 

@@ -36,6 +36,59 @@ pub struct Config {
     /// Streamline core half-width (real pixels). Should be scaled by the real
     /// display density for consistency across devices.
     pub line_half_width: f32,
+
+    /// Optional rendering effects.
+    pub effects: Effects,
+}
+
+/// Optional rendering effects, each with its own color (the alpha is the
+/// effect strength).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Effects {
+    /// Bitmask of `1 << Effects::*`.
+    pub enabled: u32,
+    /// Indexed by `Effects::*`.
+    pub colors: [[f32; 4]; Effects::COUNT],
+}
+
+impl Effects {
+    // do not change the order (it must match the shaders, the Android app, and
+    // saved prefs)
+    /// Gusts take on the color.
+    pub const SPEED: usize = 0;
+    /// Some particles glow and flicker.
+    pub const FIREFLY: usize = 1;
+    /// Drifting dots instead of streaks.
+    pub const SNOW: usize = 2;
+    /// A bright head on each streak.
+    pub const COMET: usize = 3;
+    /// Wide, soft, slow-fading strokes.
+    pub const INK: usize = 4;
+    /// A glow around the streaks.
+    pub const NEON: usize = 5;
+    pub const COUNT: usize = 6;
+
+    pub const DEFAULT: Effects = Effects {
+        enabled: 0,
+        colors: [
+            [1.00, 0.55, 0.15, 0.85], // speed
+            [1.00, 0.88, 0.35, 1.00], // firefly
+            [1.00, 1.00, 1.00, 0.85], // snow
+            [0.85, 0.95, 1.00, 0.90], // comet
+            [0.55, 0.80, 1.00, 0.80], // ink
+            [0.00, 1.00, 0.85, 0.80], // neon
+        ],
+    };
+
+    pub fn is_enabled(&self, effect: usize) -> bool {
+        effect < Self::COUNT && self.enabled & (1 << effect) != 0
+    }
+}
+
+impl Default for Effects {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
 }
 
 impl Config {
@@ -287,6 +340,7 @@ impl Default for Config {
             alpha_decay_changed: 0.91,
             particle_opacity: 1.0,
             line_half_width: 1.0,
+            effects: Effects::DEFAULT,
         }
     }
 }

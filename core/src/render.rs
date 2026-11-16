@@ -4,7 +4,7 @@
 use bytemuck::Zeroable;
 use wgpu::util::DeviceExt;
 
-use crate::config::Config;
+use crate::config::{Config, Effects};
 use crate::shaders;
 use crate::shaders::simulate::{Globals, Particle};
 
@@ -38,11 +38,13 @@ pub struct Renderer {
     sim_bg: shaders::simulate::bind_groups::BindGroup0,
     trail_bg: shaders::trail::bind_groups::BindGroup0,
     composite_bg: shaders::composite::bind_groups::BindGroup0,
+    sprites_bg: shaders::sprites::bind_groups::BindGroup0,
 
     sim_pipeline: wgpu::ComputePipeline,
     fade_pipeline: wgpu::RenderPipeline,
     trail_pipeline: wgpu::RenderPipeline,
     composite_pipeline: wgpu::RenderPipeline,
+    sprites_pipeline: wgpu::RenderPipeline,
 
     width: u32,
     height: u32,
@@ -186,6 +188,37 @@ impl Renderer {
             cache: None,
         });
 
+        let sprites_module = shaders::sprites::create_shader_module(device);
+        let sprites_pl = shaders::sprites::create_pipeline_layout(device);
+        let sprites_blend = wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One, // premultiplied
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        };
+        let sprites_vs = shaders::sprites::vs_main_entry();
+        let sprites_fs = shaders::sprites::fs_main_entry([Some(wgpu::ColorTargetState {
+            format: surface_format,
+            blend: Some(wgpu::BlendState {
+                color: sprites_blend,
+                alpha: sprites_blend,
+            }),
+            write_mask: wgpu::ColorWrites::ALL,
+        })]);
+        let sprites_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("windy.sprites_pipeline"),
+            layout: Some(&sprites_pl),
+            vertex: shaders::sprites::vertex_state(&sprites_module, &sprites_vs),
+            fragment: Some(shaders::sprites::fragment_state(
+                &sprites_module,
+                &sprites_fs,
+            )),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
         let config_alpha_decay = config.alpha_decay;
         let sim_bg = make_sim_bg(
             device,
@@ -195,6 +228,7 @@ impl Renderer {
             &wind_sampler,
         );
         let trail_bg = make_trail_bg(device, &globals_buf, &particle_buf);
+        let sprites_bg = make_sprites_bg(device, &globals_buf, &particle_buf);
         let composite_bg = make_composite_bg(
             device,
             &globals_buf,
@@ -216,10 +250,12 @@ impl Renderer {
             sim_bg,
             trail_bg,
             composite_bg,
+            sprites_bg,
             sim_pipeline,
             fade_pipeline,
             trail_pipeline,
             composite_pipeline,
+            sprites_pipeline,
             width,
             height,
             user_location: [-97.0, 38.0],
@@ -364,9 +400,23 @@ impl Renderer {
             rpass.set_pipeline(&self.composite_pipeline);
             self.composite_bg.set(&mut rpass);
             rpass.draw(0..3, 0..1);
+
+            // per-frame sprites for the snow, comet, and firefly effects
+            if self.has_sprites() {
+                rpass.set_pipeline(&self.sprites_pipeline);
+                self.sprites_bg.set(&mut rpass);
+                rpass.draw(0..6, 0..self.config.particle_count);
+            }
         }
 
         queue.submit(Some(encoder.finish()));
+    }
+
+    fn has_sprites(&self) -> bool {
+        let fx = &self.config.effects;
+        fx.is_enabled(Effects::SNOW)
+            || fx.is_enabled(Effects::COMET)
+            || fx.is_enabled(Effects::FIREFLY)
     }
 
     pub fn skip(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, frames: u32) {
@@ -408,9 +458,11 @@ impl Renderer {
         self.globals.time_acc = self.time_acc;
 
         // trail length fade (fps-independent)
-        self.globals.fade_decay = self
-            .current_alpha_decay
-            .powf((dt * TRAIL_UPDATE_FPS).max(0.0));
+        let mut decay = self.current_alpha_decay;
+        if self.config.effects.is_enabled(Effects::INK) {
+            decay = 1.0 - (1.0 - decay) * 0.3; // ink lingers
+        }
+        self.globals.fade_decay = decay.powf((dt * TRAIL_UPDATE_FPS).max(0.0));
         queue.write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&self.globals));
     }
 
@@ -460,9 +512,12 @@ impl Renderer {
         rpass.set_pipeline(&self.fade_pipeline);
         rpass.draw(0..3, 0..1);
 
-        rpass.set_pipeline(&self.trail_pipeline);
-        self.trail_bg.set(&mut rpass);
-        rpass.draw(0..6, 0..self.config.particle_count);
+        // snow replaces the streaks with sprites, but keep fading so they clear
+        if !self.config.effects.is_enabled(Effects::SNOW) {
+            rpass.set_pipeline(&self.trail_pipeline);
+            self.trail_bg.set(&mut rpass);
+            rpass.draw(0..6, 0..self.config.particle_count);
+        }
     }
 
     fn rebuild_bind_groups(&mut self, device: &wgpu::Device) {
@@ -474,6 +529,7 @@ impl Renderer {
             &self.wind_sampler,
         );
         self.trail_bg = make_trail_bg(device, &self.globals_buf, &self.particle_buf);
+        self.sprites_bg = make_sprites_bg(device, &self.globals_buf, &self.particle_buf);
         self.composite_bg = make_composite_bg(
             device,
             &self.globals_buf,
@@ -504,6 +560,15 @@ impl Renderer {
         self.globals.particle_opacity = c.particle_opacity;
         self.globals.line_half_width = c.line_half_width;
         self.globals.particle_count = c.particle_count;
+
+        let fx = &c.effects;
+        self.globals.effects = fx.enabled & ((1 << Effects::COUNT) - 1);
+        self.globals.fx_speed = fx.colors[Effects::SPEED];
+        self.globals.fx_firefly = fx.colors[Effects::FIREFLY];
+        self.globals.fx_snow = fx.colors[Effects::SNOW];
+        self.globals.fx_comet = fx.colors[Effects::COMET];
+        self.globals.fx_ink = fx.colors[Effects::INK];
+        self.globals.fx_neon = fx.colors[Effects::NEON];
     }
 
     fn compute_bounds(&self) -> [f32; 4] {
@@ -540,7 +605,7 @@ fn init_particles(config: &Config) -> Vec<Particle> {
                 prev: pos,
                 uv: [gx, gy],
                 age: rng.next_f32(),
-                _pad: 0.0,
+                speed: 0.0,
             }
         })
         .collect()
@@ -637,6 +702,20 @@ fn make_trail_bg(
     shaders::trail::bind_groups::BindGroup0::from_bindings(
         device,
         shaders::trail::bind_groups::BindGroupLayout0 {
+            g: globals_buf.as_entire_buffer_binding(),
+            particles: particle_buf.as_entire_buffer_binding(),
+        },
+    )
+}
+
+fn make_sprites_bg(
+    device: &wgpu::Device,
+    globals_buf: &wgpu::Buffer,
+    particle_buf: &wgpu::Buffer,
+) -> shaders::sprites::bind_groups::BindGroup0 {
+    shaders::sprites::bind_groups::BindGroup0::from_bindings(
+        device,
+        shaders::sprites::bind_groups::BindGroupLayout0 {
             g: globals_buf.as_entire_buffer_binding(),
             particles: particle_buf.as_entire_buffer_binding(),
         },

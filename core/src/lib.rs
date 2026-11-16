@@ -20,9 +20,12 @@ mod shaders {
     pub mod composite {
         include!(concat!(env!("OUT_DIR"), "/composite.rs"));
     }
+    pub mod sprites {
+        include!(concat!(env!("OUT_DIR"), "/sprites.rs"));
+    }
 }
 
 pub use color::{Style, StyleColor, generate};
-pub use config::{Config, Theme, ThemeColors, ThemeParams};
+pub use config::{Config, Effects, Theme, ThemeColors, ThemeParams};
 pub use render::Renderer;
 pub use source::ThemeSource;

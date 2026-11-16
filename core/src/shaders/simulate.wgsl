@@ -36,12 +36,22 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // update particle
     p.pos = new_pos;
     p.age = life;
+    p.speed = speed_at(new_pos); // for the speed color effect
     particles[i] = p;
 }
 
-fn wind_at(pos: vec2<f32>) -> vec2<f32> {
+fn wind_sample(pos: vec2<f32>) -> vec4<f32> {
     var uv = g.vector_field_bounds.xy + pos * g.vector_field_bounds.zw * g.size;
     uv = equirect_to_mercator(uv);
-    let wind = textureSampleLevel(wind_tex, wind_samp, uv, 0.0);
+    return textureSampleLevel(wind_tex, wind_samp, uv, 0.0);
+}
+
+fn wind_at(pos: vec2<f32>) -> vec2<f32> {
+    let wind = wind_sample(pos);
     return (wind.xy - 0.5) * vec2<f32>(1.0, -1.0) * g.resolution;
+}
+
+// normalized speed (field blue channel, same as the background tint)
+fn speed_at(pos: vec2<f32>) -> f32 {
+    return wind_sample(pos).b;
 }

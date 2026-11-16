@@ -24,8 +24,10 @@ import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -73,6 +75,10 @@ public class CustomThemeView extends LinearLayout {
         final View advanced = inflater.inflate(R.layout.custom_advanced, swatchList, false);
         advanced.setOnClickListener(v -> showAdvancedDialog());
         swatchList.addView(advanced);
+
+        final View effects = inflater.inflate(R.layout.custom_effects, swatchList, false);
+        effects.setOnClickListener(v -> showEffectsDialog());
+        swatchList.addView(effects);
 
         presetSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -297,6 +303,102 @@ public class CustomThemeView extends LinearLayout {
             for (int i = 0; i < CustomTheme.PARAM_COUNT; i++) {
                 sliders[i].setProgress(CustomTheme.PARAMS[i].progress(defaults[i]));
             }
+        });
+    }
+
+    private void showEffectsDialog() {
+        final int initialEffects = CustomTheme.effects(getContext());
+        final int[] initialColors = CustomTheme.effectColors(getContext());
+        final Switch[] effectSwitches = new Switch[CustomTheme.EFFECT_COUNT];
+        final ColorSwatchView[] effectSwatches = new ColorSwatchView[CustomTheme.EFFECT_COUNT];
+
+        final LayoutInflater inflater = LayoutInflater.from(getContext());
+        final LinearLayout container = (LinearLayout) inflater.inflate(R.layout.dialog_advanced, null);
+
+        final View title = inflater.inflate(R.layout.dialog_effects_title, null);
+        title.findViewById(R.id.effect_restart).setOnClickListener(v -> WindyWallpaperRenderer.restartAll());
+
+        final Runnable refreshRows = () -> {
+            final int enabled = CustomTheme.effects(getContext());
+            final int[] colors = CustomTheme.effectColors(getContext());
+            for (int i = 0; i < CustomTheme.EFFECT_COUNT; i++) {
+                final boolean on = (enabled & (1 << i)) != 0;
+                effectSwitches[i].setChecked(on);
+                effectSwatches[i].setColor(colors[i]);
+                effectSwatches[i].setAlpha(on ? 1.0f : 0.4f);
+            }
+        };
+
+        for (int i = 0; i < CustomTheme.EFFECT_COUNT; i++) {
+            final int effect = i;
+            final CustomTheme.EffectSpec spec = CustomTheme.EFFECTS[effect];
+            final String label = getContext().getString(spec.label);
+            final View row = inflater.inflate(R.layout.custom_effect, container, false);
+            ((TextView) row.findViewById(R.id.effect_label)).setText(label);
+            ((TextView) row.findViewById(R.id.effect_summary)).setText(spec.summary);
+            effectSwitches[effect] = row.findViewById(R.id.effect_switch);
+            effectSwatches[effect] = row.findViewById(R.id.effect_color);
+            effectSwitches[effect].setContentDescription(label);
+            effectSwatches[effect].setContentDescription(getContext().getString(R.string.effect_color, label));
+
+            effectSwitches[effect].setOnClickListener(v -> { // only user changes, after toggling
+                final boolean checked = effectSwitches[effect].isChecked();
+                CustomTheme.setEffectEnabled(getContext(), effect, checked, false); // live preview
+                effectSwatches[effect].setAlpha(checked ? 1.0f : 0.4f);
+            });
+            row.findViewById(R.id.effect_text).setOnClickListener(v -> {
+                final boolean checked = !effectSwitches[effect].isChecked();
+                effectSwitches[effect].setChecked(checked);
+                CustomTheme.setEffectEnabled(getContext(), effect, checked, false); // live preview
+                effectSwatches[effect].setAlpha(checked ? 1.0f : 0.4f);
+            });
+            effectSwatches[effect].setOnClickListener(v -> {
+                final String colorLabel = getContext().getString(R.string.effect_color, label);
+                ColorPickerDialog.show(getContext(), colorLabel, CustomTheme.effectColor(getContext(), effect), true,
+                        picked -> {
+                            CustomTheme.setEffectColor(getContext(), effect, picked, false); // live preview
+                            effectSwatches[effect].setColor(picked);
+                        },
+                        picked -> {
+                            // picking a color turns the effect on
+                            CustomTheme.setEffectColor(getContext(), effect, picked, false);
+                            CustomTheme.setEffectEnabled(getContext(), effect, true, false);
+                            refreshRows.run();
+                        });
+            });
+            container.addView(row);
+        }
+        refreshRows.run();
+
+        final ScrollView scroll = new ScrollView(getContext());
+        scroll.addView(container);
+
+        final boolean[] accepted = {false};
+        final AlertDialog dialog = new AlertDialog.Builder(getContext())
+                .setCustomTitle(title)
+                .setView(scroll)
+                .setPositiveButton(R.string.save, (d, which) -> {
+                    accepted[0] = true;
+                    CustomTheme.persist(getContext());
+                    updatePresetSelection();
+                })
+                .setNeutralButton(R.string.reset, null) // set below so it doesn't dismiss it
+                .setNegativeButton(android.R.string.cancel, null)
+                .setOnDismissListener(d -> {
+                    if (!accepted[0]) {
+                        CustomTheme.setEffects(getContext(), initialEffects, initialColors, false); // undo the live preview
+                    }
+                })
+                .create();
+
+        final Window window = dialog.getWindow();
+        if (window != null) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); // don't dim the wallpaper being previewed
+        }
+        dialog.show();
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
+            CustomTheme.setEffects(getContext(), 0, CustomTheme.defaultEffectColors(), false);
+            refreshRows.run();
         });
     }
 

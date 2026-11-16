@@ -17,7 +17,7 @@ fn main() {
         ..Default::default()
     };
 
-    for name in &["simulate", "trail", "fade", "composite"] {
+    for name in &["simulate", "trail", "fade", "composite", "sprites"] {
         println!("cargo:rerun-if-changed=src/shaders/{name}.wgsl");
         let body =
             std::fs::read_to_string(format!("src/shaders/{name}.wgsl")).expect("read shader");

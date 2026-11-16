@@ -9,6 +9,12 @@ struct Globals {
     bg_color2: vec4<f32>,
     color_slow: vec4<f32>,
     color_fast: vec4<f32>,
+    fx_speed: vec4<f32>,    // effect colors (alpha is the strength)
+    fx_firefly: vec4<f32>,
+    fx_snow: vec4<f32>,
+    fx_comet: vec4<f32>,
+    fx_ink: vec4<f32>,
+    fx_neon: vec4<f32>,
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)
@@ -23,7 +29,7 @@ struct Globals {
     fade_decay: f32,        // per-frame trail fade multiplier
     particle_count: u32,
     srgb_output: u32,
-    _pad0: u32,
+    effects: u32,           // FX_* bitmask
     _pad1: u32,
 };
 
@@ -32,8 +38,20 @@ struct Particle {
     prev: vec2<f32>,  // previous position (for drawing line)
     uv: vec2<f32>,    // stable per-particle seed coordinate
     age: f32,         // remaining life, ~[0,1]
-    _pad: f32,
+    speed: f32,       // normalized wind speed at pos [0,1]
 };
+
+// effect bits (must match Effects in config.rs)
+const FX_SPEED: u32 = 1u;
+const FX_FIREFLY: u32 = 2u;
+const FX_SNOW: u32 = 4u;
+const FX_COMET: u32 = 8u;
+const FX_INK: u32 = 16u;
+const FX_NEON: u32 = 32u;
+
+fn has_fx(effects: u32, bit: u32) -> bool {
+    return (effects & bit) != 0u;
+}
 
 // same as original glsl rand
 fn rand(co: vec2<f32>) -> f32 {
@@ -48,4 +66,10 @@ fn equirect_to_mercator(uv: vec2<f32>) -> vec2<f32> {
     var y = atan(sinh(latitude)) / (PI * 0.5);
     y = y * 0.5 + 0.5;
     return vec2<f32>(uv.x, y);
+}
+
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    let low = c / 12.92;
+    let high = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(high, low, c <= vec3<f32>(0.04045));
 }

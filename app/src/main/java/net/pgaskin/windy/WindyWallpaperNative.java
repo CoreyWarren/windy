@@ -57,6 +57,15 @@ public final class WindyWallpaperNative implements AutoCloseable {
         nativeSetCustom(handle, colors, params);
     }
 
+    /**
+     * Replaces the effects, with enabled being a bitmask of
+     * {@code 1 << CustomTheme.EFFECT_*}, and the colors (packed 0xAARRGGBB,
+     * the alpha is the strength) indexed by {@code CustomTheme.EFFECT_*}.
+     */
+    public void setEffects(int enabled, int[] colors) {
+        nativeSetEffects(handle, enabled, colors);
+    }
+
     /** The name of the GPU the renderer is using, or null if unknown. */
     public String gpuModel() {
         return nativeGpuModel(handle);
@@ -109,6 +118,11 @@ public final class WindyWallpaperNative implements AutoCloseable {
         return nativeCoordinateBounds(lng, lat, aspect);
     }
 
+    /** The default color for an effect (packed 0xAARRGGBB). */
+    public static int effectColor(int effect) {
+        return nativeEffectColor(effect);
+    }
+
     public static float themeParam(int themeIndex, int param) {
         return nativeThemeParam(themeIndex, param);
     }
@@ -130,6 +144,8 @@ public final class WindyWallpaperNative implements AutoCloseable {
     private static native void nativeSetOffset(long handle, float offset);
     private static native void nativeSetUserLocation(long handle, float lng, float lat);
     private static native void nativeSetCustom(long handle, int[] colors, float[] params);
+    private static native void nativeSetEffects(long handle, int enabled, int[] colors);
+    private static native int nativeEffectColor(int effect);
     private static native void nativeSetWindField(long handle, byte[] rgba, int width, int height);
     private static native String nativeGpuModel(long handle);
     private static native void nativeDestroy(long handle);

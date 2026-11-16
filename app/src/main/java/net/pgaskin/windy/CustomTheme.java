@@ -111,6 +111,38 @@ public final class CustomTheme {
 
     public static final int PARAM_COUNT = PARAMS.length;
 
+    public static final class EffectSpec {
+        public final String key; // preset key name
+        public final int label; // human-readable
+        public final int summary; // human-readable
+
+        private EffectSpec(String key, int label, int summary) {
+            this.key = key;
+            this.label = label;
+            this.summary = summary;
+        }
+    }
+
+    // do not change the order (it must match native and saved prefs)
+    public static final int EFFECT_SPEED = 0;
+    public static final int EFFECT_FIREFLY = 1;
+    public static final int EFFECT_SNOW = 2;
+    public static final int EFFECT_COMET = 3;
+    public static final int EFFECT_INK = 4;
+    public static final int EFFECT_NEON = 5;
+
+    public static final EffectSpec[] EFFECTS = { // [EFFECT_*]
+            new EffectSpec("speed", R.string.effect_speed, R.string.effect_speed_summary),
+            new EffectSpec("firefly", R.string.effect_firefly, R.string.effect_firefly_summary),
+            new EffectSpec("snow", R.string.effect_snow, R.string.effect_snow_summary),
+            new EffectSpec("comet", R.string.effect_comet, R.string.effect_comet_summary),
+            new EffectSpec("ink", R.string.effect_ink, R.string.effect_ink_summary),
+            new EffectSpec("neon", R.string.effect_neon, R.string.effect_neon_summary),
+    };
+
+    public static final int EFFECT_COUNT = EFFECTS.length;
+    private static final int EFFECT_MASK = (1 << EFFECT_COUNT) - 1;
+
     private static final int MAX_PRESETS = 32;
     private static final int MAX_NAME_LENGTH = 40;
 
@@ -119,6 +151,8 @@ public final class CustomTheme {
 
     private static volatile int[] colors; // array values immutable once set
     private static volatile float[] params;
+    private static volatile int effects = -1; // bitmask of 1 << EFFECT_*, -1 if not loaded
+    private static volatile int[] effectColors;
 
     private CustomTheme() {
     }
@@ -179,6 +213,87 @@ public final class CustomTheme {
         return result;
     }
 
+    /** The enabled effects, as a bitmask of {@code 1 << EFFECT_*}. */
+    public static int effects(Context context) {
+        int current = effects;
+        if (current < 0) {
+            synchronized (CustomTheme.class) {
+                current = effects;
+                if (current < 0) {
+                    current = Prefs.get(context).getInt(Prefs.KEY_CUSTOM_EFFECTS, 0) & EFFECT_MASK;
+                    effects = current;
+                }
+            }
+        }
+        return current;
+    }
+
+    public static boolean effectEnabled(Context context, int effect) {
+        return (effects(context) & (1 << effect)) != 0;
+    }
+
+    /** The effect colors (packed 0xAARRGGBB, the alpha is the strength). */
+    public static int[] effectColors(Context context) {
+        int[] current = effectColors;
+        if (current == null) {
+            synchronized (CustomTheme.class) {
+                current = effectColors;
+                if (current == null) {
+                    current = parseEffectColors(Prefs.get(context).getString(Prefs.KEY_CUSTOM_EFFECT_COLORS, null));
+                    effectColors = current;
+                }
+            }
+        }
+        return current.clone();
+    }
+
+    public static int effectColor(Context context, int effect) {
+        return effectColors(context)[effect];
+    }
+
+    public static int[] defaultEffectColors() {
+        final int[] result = new int[EFFECT_COUNT];
+        for (int i = 0; i < EFFECT_COUNT; i++) {
+            result[i] = WindyWallpaperNative.effectColor(i);
+        }
+        return result;
+    }
+
+    /**
+     * Updates the effects, applying them to the active renderers. The colors
+     * may be null to preserve the current value. See {@link #set} for persist.
+     */
+    public static void setEffects(Context context, int nextEffects, int[] nextColors, boolean persist) {
+        if (nextColors != null) {
+            if (nextColors.length != EFFECT_COUNT) {
+                throw new IllegalArgumentException("expected " + EFFECT_COUNT + " effect colors");
+            }
+            effectColors = nextColors.clone();
+        }
+        effects = nextEffects & EFFECT_MASK;
+        if (persist) {
+            persist(context);
+        }
+        notifyChanged();
+    }
+
+    public static void setEffectEnabled(Context context, int effect, boolean enabled, boolean persist) {
+        final int current = effects(context);
+        final int next = enabled ? current | (1 << effect) : current & ~(1 << effect);
+        if (next != current) {
+            setEffects(context, next, null, persist);
+        }
+    }
+
+    public static void setEffectColor(Context context, int effect, int argb, boolean persist) {
+        final int[] next = effectColors(context);
+        if (next[effect] == argb) {
+            return;
+        }
+        next[effect] = argb;
+        setEffects(context, effects(context), next, persist);
+    }
+
     /**
      * Updates the colors and params, applying them to the active renderers.
      * Either may be null to preserve the current value. When persist is false,
@@ -237,6 +352,8 @@ public final class CustomTheme {
         for (int i = 0; i < PARAM_COUNT; i++) {
             edit.putFloat(paramKey(i), current[i]);
         }
+        edit.putInt(Prefs.KEY_CUSTOM_EFFECTS, effects(context));
+        edit.putString(Prefs.KEY_CUSTOM_EFFECT_COLORS, formatColors(effectColors(context)));
         edit.apply();
     }
 
@@ -276,18 +393,23 @@ public final class CustomTheme {
         public final String name;
         public final int[] colors;
         public final float[] params;
+        public final int effects;
+        public final int[] effectColors;
 
-        Preset(String name, int[] colors, float[] params) {
+        Preset(String name, int[] colors, float[] params, int effects, int[] effectColors) {
             this.name = name;
             this.colors = colors;
             this.params = params;
+            this.effects = effects;
+            this.effectColors = effectColors;
         }
 
         /**
          * Whether the current colors and params still match this preset.
          */
         public boolean matches(Context context) {
-            return Arrays.equals(colors, colors(context)) && Arrays.equals(params, params(context));
+            return Arrays.equals(colors, colors(context)) && Arrays.equals(params, params(context))
+                    && effects == effects(context) && Arrays.equals(effectColors, effectColors(context));
         }
     }
 
@@ -308,7 +430,10 @@ public final class CustomTheme {
                     for (int p = 0; p < PARAM_COUNT; p++) {
                         params[p] = (float) obj.optDouble(PARAMS[p].key, params[p]);
                     }
-                    presets.add(new Preset(name, parseColors(obj.optString("colors", null)), params));
+                    // presets saved before the effects existed have none
+                    final int effects = obj.optInt("effects", 0) & EFFECT_MASK;
+                    final int[] effectColors = parseEffectColors(obj.optString("effect_colors", null));
+                    presets.add(new Preset(name, parseColors(obj.optString("colors", null)), params, effects, effectColors));
                 }
             }
         } catch (JSONException ex) {
@@ -331,7 +456,7 @@ public final class CustomTheme {
         if (name.isEmpty()) {
             return;
         }
-        final Preset current = new Preset(name, colors(context), params(context));
+        final Preset current = new Preset(name, colors(context), params(context), effects(context), effectColors(context));
         final List<Preset> presets = presets(context);
         boolean replaced = false;
         for (int i = 0; i < presets.size(); i++) {
@@ -371,7 +496,9 @@ public final class CustomTheme {
             return;
         }
         Prefs.get(context).edit().putString(Prefs.KEY_CUSTOM_PRESET, preset.name).apply();
-        set(context, preset.colors, preset.params, true);
+        effects = preset.effects;
+        effectColors = preset.effectColors.clone();
+        set(context, preset.colors, preset.params, true); // also persists the effects
     }
 
     public static String presetName(Context context) {
@@ -397,6 +524,8 @@ public final class CustomTheme {
                 for (int p = 0; p < PARAM_COUNT; p++) {
                     obj.put(PARAMS[p].key, (double) preset.params[p]);
                 }
+                obj.put("effects", preset.effects);
+                obj.put("effect_colors", formatColors(preset.effectColors));
                 arr.put(obj);
             }
         } catch (JSONException ex) {
@@ -426,6 +555,22 @@ public final class CustomTheme {
             sb.append(String.format(Locale.ROOT, "%08x", color));
         }
         return sb.toString();
+    }
+
+    private static int[] parseEffectColors(String saved) {
+        final int[] result = defaultEffectColors();
+        if (saved == null) {
+            return result;
+        }
+        final String[] parts = saved.split(",", -1);
+        for (int i = 0; i < EFFECT_COUNT && i < parts.length; i++) {
+            try {
+                result[i] = (int) Long.parseLong(parts[i].trim(), 16);
+            } catch (NumberFormatException ex) {
+                Log.w(TAG, "ignoring invalid saved effect color " + parts[i]);
+            }
+        }
+        return result;
     }
 
     private static int[] parseColors(String saved) {
