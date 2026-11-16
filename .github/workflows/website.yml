@@ -27,7 +27,8 @@ jobs:
           path: website/build
 
   deploy:
-    if: github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    # only the original repo has github pages set up, so skip it on forks
+    if: github.repository == 'pgaskin/windy' && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     needs: build
     permissions:
       pages: write
