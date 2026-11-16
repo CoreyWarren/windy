@@ -274,10 +274,13 @@ public class CustomThemeView extends LinearLayout {
             container.addView(row);
         }
 
+        final ScrollView advancedScroll = new ScrollView(getContext()); // more params than fit on small screens
+        advancedScroll.addView(container);
+
         final boolean[] accepted = {false};
         final AlertDialog dialog = new AlertDialog.Builder(getContext())
                 .setCustomTitle(title)
-                .setView(container)
+                .setView(advancedScroll)
                 .setPositiveButton(R.string.save, (d, which) -> {
                     accepted[0] = true;
                     CustomTheme.persist(getContext());
@@ -309,6 +312,7 @@ public class CustomThemeView extends LinearLayout {
     private void showEffectsDialog() {
         final int initialEffects = CustomTheme.effects(getContext());
         final int[] initialColors = CustomTheme.effectColors(getContext());
+        final float[] initialParams = CustomTheme.effectParams(getContext());
         final Switch[] effectSwitches = new Switch[CustomTheme.EFFECT_COUNT];
         final ColorSwatchView[] effectSwatches = new ColorSwatchView[CustomTheme.EFFECT_COUNT];
 
@@ -320,11 +324,12 @@ public class CustomThemeView extends LinearLayout {
 
         final Runnable refreshRows = () -> {
             final int enabled = CustomTheme.effects(getContext());
-            final int[] colors = CustomTheme.effectColors(getContext());
             for (int i = 0; i < CustomTheme.EFFECT_COUNT; i++) {
                 final boolean on = (enabled & (1 << i)) != 0;
                 effectSwitches[i].setChecked(on);
-                effectSwatches[i].setColor(colors[i]);
+                effectSwatches[i].setGradient(
+                        CustomTheme.effectColor(getContext(), i, false),
+                        CustomTheme.effectColor(getContext(), i, true));
                 effectSwatches[i].setAlpha(on ? 1.0f : 0.4f);
             }
         };
@@ -339,33 +344,17 @@ public class CustomThemeView extends LinearLayout {
             effectSwitches[effect] = row.findViewById(R.id.effect_switch);
             effectSwatches[effect] = row.findViewById(R.id.effect_color);
             effectSwitches[effect].setContentDescription(label);
-            effectSwatches[effect].setContentDescription(getContext().getString(R.string.effect_color, label));
+            effectSwatches[effect].setContentDescription(getContext().getString(R.string.effect_tune, label));
 
             effectSwitches[effect].setOnClickListener(v -> { // only user changes, after toggling
                 final boolean checked = effectSwitches[effect].isChecked();
                 CustomTheme.setEffectEnabled(getContext(), effect, checked, false); // live preview
                 effectSwatches[effect].setAlpha(checked ? 1.0f : 0.4f);
             });
-            row.findViewById(R.id.effect_text).setOnClickListener(v -> {
-                final boolean checked = !effectSwitches[effect].isChecked();
-                effectSwitches[effect].setChecked(checked);
-                CustomTheme.setEffectEnabled(getContext(), effect, checked, false); // live preview
-                effectSwatches[effect].setAlpha(checked ? 1.0f : 0.4f);
-            });
-            effectSwatches[effect].setOnClickListener(v -> {
-                final String colorLabel = getContext().getString(R.string.effect_color, label);
-                ColorPickerDialog.show(getContext(), colorLabel, CustomTheme.effectColor(getContext(), effect), true,
-                        picked -> {
-                            CustomTheme.setEffectColor(getContext(), effect, picked, false); // live preview
-                            effectSwatches[effect].setColor(picked);
-                        },
-                        picked -> {
-                            // picking a color turns the effect on
-                            CustomTheme.setEffectColor(getContext(), effect, picked, false);
-                            CustomTheme.setEffectEnabled(getContext(), effect, true, false);
-                            refreshRows.run();
-                        });
-            });
+
+            // the name and the swatch open the effect's own settings
+            row.findViewById(R.id.effect_text).setOnClickListener(v -> showEffectDialog(effect, refreshRows));
+            effectSwatches[effect].setOnClickListener(v -> showEffectDialog(effect, refreshRows));
             container.addView(row);
         }
         refreshRows.run();
@@ -386,7 +375,7 @@ public class CustomThemeView extends LinearLayout {
                 .setNegativeButton(android.R.string.cancel, null)
                 .setOnDismissListener(d -> {
                     if (!accepted[0]) {
-                        CustomTheme.setEffects(getContext(), initialEffects, initialColors, false); // undo the live preview
+                        CustomTheme.setEffects(getContext(), initialEffects, initialColors, initialParams, false); // undo the live preview
                     }
                 })
                 .create();
@@ -397,8 +386,128 @@ public class CustomThemeView extends LinearLayout {
         }
         dialog.show();
         dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            CustomTheme.setEffects(getContext(), 0, CustomTheme.defaultEffectColors(), false);
+            CustomTheme.setEffects(getContext(), 0, CustomTheme.defaultEffectColors(), CustomTheme.defaultEffectParams(), false);
             refreshRows.run();
+        });
+    }
+
+    /**
+     * One effect's switch, gradient, and sliders. Changes are live and kept in
+     * memory, the effects dialog underneath saves or undoes them.
+     */
+    private void showEffectDialog(int effect, Runnable onChanged) {
+        final CustomTheme.EffectSpec spec = CustomTheme.EFFECTS[effect];
+        final String label = getContext().getString(spec.label);
+        final LayoutInflater inflater = LayoutInflater.from(getContext());
+        final LinearLayout container = (LinearLayout) inflater.inflate(R.layout.dialog_advanced, null);
+
+        // on/off
+        final Switch enabled = new Switch(getContext());
+        enabled.setText(R.string.effect_enabled);
+        enabled.setChecked(CustomTheme.effectEnabled(getContext(), effect));
+        enabled.setOnClickListener(v -> {
+            CustomTheme.setEffectEnabled(getContext(), effect, enabled.isChecked(), false); // live preview
+            onChanged.run();
+        });
+        container.addView(enabled);
+
+        // gradient
+        final LinearLayout colors = new LinearLayout(getContext());
+        colors.setOrientation(LinearLayout.HORIZONTAL);
+        final ColorSwatchView[] swatches = new ColorSwatchView[2];
+        for (int i = 0; i < 2; i++) {
+            final boolean end = i == 1;
+            final String name = getContext().getString(end ? R.string.effect_end : R.string.effect_start);
+            final String colorLabel = getContext().getString(end ? R.string.effect_end_color : R.string.effect_start_color, label);
+            final View item = inflater.inflate(R.layout.custom_swatch, colors, false);
+            swatches[i] = item.findViewById(R.id.swatch_color);
+            swatches[i].setColor(CustomTheme.effectColor(getContext(), effect, end));
+            ((TextView) item.findViewById(R.id.swatch_label)).setText(name);
+            item.setContentDescription(colorLabel);
+            final ColorSwatchView swatch = swatches[i];
+            item.setOnClickListener(v -> ColorPickerDialog.show(getContext(), colorLabel,
+                    CustomTheme.effectColor(getContext(), effect, end), true,
+                    picked -> {
+                        CustomTheme.setEffectColor(getContext(), effect, end, picked, false); // live preview
+                        swatch.setColor(picked);
+                        onChanged.run();
+                    },
+                    picked -> {
+                        // picking a color turns the effect on
+                        CustomTheme.setEffectColor(getContext(), effect, end, picked, false);
+                        CustomTheme.setEffectEnabled(getContext(), effect, true, false);
+                        enabled.setChecked(true);
+                        swatch.setColor(picked);
+                        onChanged.run();
+                    }));
+            colors.addView(item);
+        }
+        container.addView(colors);
+
+        final TextView gradient = new TextView(getContext());
+        gradient.setText(spec.gradient);
+        gradient.setTextSize(12);
+        container.addView(gradient);
+
+        // sliders
+        final SeekBar[] sliders = new SeekBar[spec.params.length];
+        for (int i = 0; i < spec.params.length; i++) {
+            final int param = i;
+            final CustomTheme.ParamSpec ps = spec.params[param];
+            final float initial = CustomTheme.effectParam(getContext(), effect, param);
+            final View row = inflater.inflate(R.layout.custom_param, container, false);
+            final TextView value = row.findViewById(R.id.param_value);
+            ((TextView) row.findViewById(R.id.param_label)).setText(ps.label);
+            sliders[param] = row.findViewById(R.id.param_slider);
+            sliders[param].setMax(ps.steps);
+            sliders[param].setProgress(ps.progress(initial));
+            value.setText(ps.text(initial));
+            sliders[param].setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    final float v = ps.value(progress);
+                    value.setText(ps.text(v));
+                    if (fromUser) {
+                        CustomTheme.setEffectParam(getContext(), effect, param, v, false); // live preview
+                    }
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                }
+            });
+            container.addView(row);
+        }
+
+        final ScrollView scroll = new ScrollView(getContext());
+        scroll.addView(container);
+
+        final AlertDialog dialog = new AlertDialog.Builder(getContext())
+                .setTitle(label)
+                .setView(scroll)
+                .setPositiveButton(R.string.done, null)
+                .setNeutralButton(R.string.reset, null) // set below so it doesn't dismiss it
+                .setOnDismissListener(d -> onChanged.run())
+                .create();
+
+        final Window window = dialog.getWindow();
+        if (window != null) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); // don't dim the wallpaper being previewed
+        }
+        dialog.show();
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
+            CustomTheme.resetEffect(getContext(), effect, false);
+            swatches[0].setColor(CustomTheme.effectColor(getContext(), effect, false));
+            swatches[1].setColor(CustomTheme.effectColor(getContext(), effect, true));
+            for (int i = 0; i < spec.params.length; i++) {
+                final float reset = CustomTheme.effectParam(getContext(), effect, i);
+                sliders[i].setProgress(spec.params[i].progress(reset)); // updates the value text
+            }
+            onChanged.run();
         });
     }
 

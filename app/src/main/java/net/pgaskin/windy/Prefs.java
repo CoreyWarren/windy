@@ -25,7 +25,8 @@ public final class Prefs {
     public static final String KEY_CUSTOM_PRESETS = "custom_presets"; // saved
     public static final String KEY_CUSTOM_PARAM_PREFIX = "custom_param_"; // + the param name
     public static final String KEY_CUSTOM_EFFECTS = "custom_effects"; // bitmask
-    public static final String KEY_CUSTOM_EFFECT_COLORS = "custom_effect_colors";
+    public static final String KEY_CUSTOM_EFFECT_COLORS = "custom_effect_colors"; // starts, then ends
+    public static final String KEY_CUSTOM_EFFECT_PARAMS = "custom_effect_params";
     public static final String KEY_DEVELOPER_MODE = "developer_mode";
 
     private static final String KEY_THEME_LEGACY = "theme"; // index into Themes.ALL

@@ -458,10 +458,9 @@ impl Renderer {
         self.globals.time_acc = self.time_acc;
 
         // trail length fade (fps-independent)
-        let mut decay = self.current_alpha_decay;
-        if self.config.effects.is_enabled(Effects::INK) {
-            decay = 1.0 - (1.0 - decay) * 0.3; // ink lingers
-        }
+        // ink and comet tails linger (or shorten)
+        let linger = self.config.effects.trail_linger();
+        let decay = (1.0 - (1.0 - self.current_alpha_decay) / linger).clamp(0.0, 0.99999);
         self.globals.fade_decay = decay.powf((dt * TRAIL_UPDATE_FPS).max(0.0));
         queue.write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&self.globals));
     }
@@ -563,12 +562,24 @@ impl Renderer {
 
         let fx = &c.effects;
         self.globals.effects = fx.enabled & ((1 << Effects::COUNT) - 1);
-        self.globals.fx_speed = fx.colors[Effects::SPEED];
-        self.globals.fx_firefly = fx.colors[Effects::FIREFLY];
-        self.globals.fx_snow = fx.colors[Effects::SNOW];
-        self.globals.fx_comet = fx.colors[Effects::COMET];
-        self.globals.fx_ink = fx.colors[Effects::INK];
-        self.globals.fx_neon = fx.colors[Effects::NEON];
+        self.globals.fx_speed_a = fx.colors[Effects::SPEED];
+        self.globals.fx_speed_b = fx.colors2[Effects::SPEED];
+        self.globals.fx_speed_p = fx.params[Effects::SPEED];
+        self.globals.fx_firefly_a = fx.colors[Effects::FIREFLY];
+        self.globals.fx_firefly_b = fx.colors2[Effects::FIREFLY];
+        self.globals.fx_firefly_p = fx.params[Effects::FIREFLY];
+        self.globals.fx_snow_a = fx.colors[Effects::SNOW];
+        self.globals.fx_snow_b = fx.colors2[Effects::SNOW];
+        self.globals.fx_snow_p = fx.params[Effects::SNOW];
+        self.globals.fx_comet_a = fx.colors[Effects::COMET];
+        self.globals.fx_comet_b = fx.colors2[Effects::COMET];
+        self.globals.fx_comet_p = fx.params[Effects::COMET];
+        self.globals.fx_ink_a = fx.colors[Effects::INK];
+        self.globals.fx_ink_b = fx.colors2[Effects::INK];
+        self.globals.fx_ink_p = fx.params[Effects::INK];
+        self.globals.fx_neon_a = fx.colors[Effects::NEON];
+        self.globals.fx_neon_b = fx.colors2[Effects::NEON];
+        self.globals.fx_neon_p = fx.params[Effects::NEON];
     }
 
     fn compute_bounds(&self) -> [f32; 4] {

@@ -9,12 +9,25 @@ struct Globals {
     bg_color2: vec4<f32>,
     color_slow: vec4<f32>,
     color_fast: vec4<f32>,
-    fx_speed: vec4<f32>,    // effect colors (alpha is the strength)
-    fx_firefly: vec4<f32>,
-    fx_snow: vec4<f32>,
-    fx_comet: vec4<f32>,
-    fx_ink: vec4<f32>,
-    fx_neon: vec4<f32>,
+    // effects: _a/_b are the gradient colors (alpha is the strength), _p the params
+    fx_speed_a: vec4<f32>,
+    fx_speed_b: vec4<f32>,
+    fx_speed_p: vec4<f32>,
+    fx_firefly_a: vec4<f32>,
+    fx_firefly_b: vec4<f32>,
+    fx_firefly_p: vec4<f32>,
+    fx_snow_a: vec4<f32>,
+    fx_snow_b: vec4<f32>,
+    fx_snow_p: vec4<f32>,
+    fx_comet_a: vec4<f32>,
+    fx_comet_b: vec4<f32>,
+    fx_comet_p: vec4<f32>,
+    fx_ink_a: vec4<f32>,
+    fx_ink_b: vec4<f32>,
+    fx_ink_p: vec4<f32>,
+    fx_neon_a: vec4<f32>,
+    fx_neon_b: vec4<f32>,
+    fx_neon_p: vec4<f32>,
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)

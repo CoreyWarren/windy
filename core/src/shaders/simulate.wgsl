@@ -19,6 +19,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let velocity = wind * g.wind_speed * g.time_delta * 0.2; // real time so this is independent of fps
     var new_pos = p.pos + velocity;
 
+    // snow effect: flakes fall (fraction of the screen per second)
+    if (has_fx(g.effects, FX_SNOW)) {
+        new_pos.y = new_pos.y + g.fx_snow_p.z * 0.25 * g.time_delta;
+    }
+
     var life = p.age - (g.time_delta / g.particle_life) * 0.3;
 
     // respawn dead particle if needed

@@ -37,29 +37,35 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let trail = textureSample(trail_tex, trail_samp, t);
     var particle_color = mix(g.color_slow, g.color_fast, trail.r);
 
-    // ink effect: the strokes take on the ink color and get denser
+    // ink effect: the strokes take on the ink color (calm to fast gradient)
     if (has_fx(g.effects, FX_INK)) {
+        let ink = mix(g.fx_ink_a, g.fx_ink_b, speed);
         particle_color = vec4<f32>(
-            mix(particle_color.rgb, g.fx_ink.rgb, g.fx_ink.a),
-            mix(particle_color.a, 0.85, g.fx_ink.a),
+            mix(particle_color.rgb, ink.rgb, ink.a),
+            mix(particle_color.a, g.fx_ink_p.w, ink.a), // density
         );
     }
 
-    // speed color effect: gusts take on the speed color
+    // speed color effect: gusts take on the speed color (gust to max gradient)
     if (has_fx(g.effects, FX_SPEED)) {
-        let w = clamp(trail.b / max(trail.g, 1e-4), 0.0, 1.0) * g.fx_speed.a;
+        let w = clamp(trail.b / max(trail.g, 1e-4), 0.0, 1.0);
+        let tint = mix(g.fx_speed_a, g.fx_speed_b, w);
+        let amount = smoothstep(0.0, 0.25, w) * tint.a;
         particle_color = vec4<f32>(
-            mix(particle_color.rgb, g.fx_speed.rgb, w),
-            mix(particle_color.a, max(particle_color.a, 0.75), w),
+            mix(particle_color.rgb, tint.rgb, amount),
+            mix(particle_color.a, max(particle_color.a, g.fx_speed_p.z), amount), // opacity
         );
     }
 
     // discard the alpha to match how the original one is rendered
     var rgb = mix(bg, particle_color, particle_color.a * trail.g).rgb;
 
-    // neon effect: a soft glow around the streamlines
+    // neon effect: a soft glow around the streamlines (calm to fast gradient)
     if (has_fx(g.effects, FX_NEON)) {
-        rgb = rgb + g.fx_neon.rgb * neon_glow(t) * g.fx_neon.a * 1.6;
+        let neon = mix(g.fx_neon_a, g.fx_neon_b, speed);
+        // pulse: whole cycles per 64s so the wrapped time doesn't jump
+        let pulse = 1.0 - g.fx_neon_p.w * 0.5 * (1.0 + sin(g.time_acc * (2.0 * PI / 8.0)));
+        rgb = rgb + neon.rgb * neon_glow(t) * neon.a * g.fx_neon_p.y * pulse; // brightness
     }
 
     var out = vec4<f32>(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
@@ -71,18 +77,24 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return out;
 }
 
-// blurred trail coverage around t (two rings of taps)
+// blurred trail coverage around t (rings of taps, 8 on low quality, 16 on high)
 fn neon_glow(t: vec2<f32>) -> f32 {
     let texel = 1.0 / g.trail_size;
-    let r1 = max(g.line_half_width * 3.0, 2.0);
-    let r2 = max(g.line_half_width * 7.0, 5.0);
+    let scale = g.fx_neon_p.x; // radius
+    let r1 = max(g.line_half_width * 3.0 * scale, 1.5);
+    let r2 = max(g.line_half_width * 7.0 * scale, 3.0);
+    let high = g.fx_neon_p.z >= 0.5; // quality
     var sum = 0.0;
     for (var i = 0; i < 8; i = i + 1) {
         let a = f32(i) * (PI / 4.0);
         let d = vec2<f32>(cos(a), sin(a));
-        sum = sum + textureSampleLevel(trail_tex, trail_samp, t + d * r1 * texel, 0.0).g * 0.6;
-        let d2 = vec2<f32>(cos(a + PI / 8.0), sin(a + PI / 8.0));
-        sum = sum + textureSampleLevel(trail_tex, trail_samp, t + d2 * r2 * texel, 0.0).g * 0.4;
+        if (high) {
+            sum = sum + textureSampleLevel(trail_tex, trail_samp, t + d * r1 * texel, 0.0).g * 0.6;
+            let d2 = vec2<f32>(cos(a + PI / 8.0), sin(a + PI / 8.0));
+            sum = sum + textureSampleLevel(trail_tex, trail_samp, t + d2 * r2 * texel, 0.0).g * 0.4;
+        } else {
+            sum = sum + textureSampleLevel(trail_tex, trail_samp, t + d * (r1 + r2) * 0.5 * texel, 0.0).g;
+        }
     }
     return sum / 8.0;
 }

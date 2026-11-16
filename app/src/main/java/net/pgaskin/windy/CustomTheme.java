@@ -55,8 +55,13 @@ public final class CustomTheme {
         public final int steps;
         public final int decimals;
         public final boolean logScale; // trail decay only really matters near 1.0
+        public final boolean expScale; // multipliers, so 1/2x and 2x are equally far from 1x
 
         private ParamSpec(String key, int label, float min, float max, int steps, int decimals, boolean logScale) {
+            this(key, label, min, max, steps, decimals, logScale, false);
+        }
+
+        private ParamSpec(String key, int label, float min, float max, int steps, int decimals, boolean logScale, boolean expScale) {
             this.key = key;
             this.label = label;
             this.min = min;
@@ -64,11 +69,15 @@ public final class CustomTheme {
             this.steps = steps;
             this.decimals = decimals;
             this.logScale = logScale;
+            this.expScale = expScale;
         }
 
         /** The value at a slider position. */
         public float value(int progress) {
             final float fraction = progress / (float) steps;
+            if (expScale) {
+                return (float) (min * Math.pow(max / min, fraction));
+            }
             if (logScale) {
                 final double lo = Math.log1p(-min);
                 final double hi = Math.log1p(-max);
@@ -80,7 +89,9 @@ public final class CustomTheme {
         /** The slider position for a value. */
         public int progress(float value) {
             final double fraction;
-            if (logScale) {
+            if (expScale) {
+                fraction = Math.log(Math.max(value, min) / min) / Math.log(max / min);
+            } else if (logScale) {
                 final double lo = Math.log1p(-min);
                 final double hi = Math.log1p(-max);
                 fraction = (Math.log1p(-Math.min(value, 0.999999)) - lo) / (hi - lo);
@@ -101,12 +112,16 @@ public final class CustomTheme {
     public static final int PARAM_PARTICLE_OPACITY = 1;
     public static final int PARAM_ALPHA_DECAY = 2;
     public static final int PARAM_WIND_SPEED = 3;
+    public static final int PARAM_PARTICLE_COUNT = 4;
+    public static final int PARAM_PARTICLE_LIFE = 5;
 
     public static final ParamSpec[] PARAMS = { // [PARAM_*]
             new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false),
             new ParamSpec("particle_opacity", R.string.param_opacity, 0.0f, 2.0f, 100, 2, false),
             new ParamSpec("alpha_decay", R.string.param_trail_decay, 0.95f, 0.9999f, 500, 4, true),
-            new ParamSpec("wind_speed", R.string.param_wind_speed, 0.0f, 0.5f, 100, 3, false),
+            new ParamSpec("wind_speed", R.string.param_wind_speed, 0.0f, 2.0f, 200, 3, false),
+            new ParamSpec("particle_count", R.string.param_particle_count, 256, 16384, 63, 0, false),
+            new ParamSpec("particle_life", R.string.param_particle_life, 1.0f, 30.0f, 58, 1, false),
     };
 
     public static final int PARAM_COUNT = PARAMS.length;
@@ -115,13 +130,27 @@ public final class CustomTheme {
         public final String key; // preset key name
         public final int label; // human-readable
         public final int summary; // human-readable
+        public final int gradient; // human-readable, what the gradient follows
+        public final ParamSpec[] params; // [EFFECT_PARAM_COUNT max]
 
-        private EffectSpec(String key, int label, int summary) {
+        private EffectSpec(String key, int label, int summary, int gradient, ParamSpec... params) {
             this.key = key;
             this.label = label;
             this.summary = summary;
+            this.gradient = gradient;
+            this.params = params;
         }
     }
+
+    private static ParamSpec lin(int label, float min, float max, int steps, int decimals) {
+        return new ParamSpec("", label, min, max, steps, decimals, false, false);
+    }
+
+    private static ParamSpec exp(int label, float min, float max, int steps, int decimals) {
+        return new ParamSpec("", label, min, max, steps, decimals, false, true);
+    }
+
+    public static final int EFFECT_PARAM_COUNT = 4; // per effect
 
     // do not change the order (it must match native and saved prefs)
     public static final int EFFECT_SPEED = 0;
@@ -132,12 +161,35 @@ public final class CustomTheme {
     public static final int EFFECT_NEON = 5;
 
     public static final EffectSpec[] EFFECTS = { // [EFFECT_*]
-            new EffectSpec("speed", R.string.effect_speed, R.string.effect_speed_summary),
-            new EffectSpec("firefly", R.string.effect_firefly, R.string.effect_firefly_summary),
-            new EffectSpec("snow", R.string.effect_snow, R.string.effect_snow_summary),
-            new EffectSpec("comet", R.string.effect_comet, R.string.effect_comet_summary),
-            new EffectSpec("ink", R.string.effect_ink, R.string.effect_ink_summary),
-            new EffectSpec("neon", R.string.effect_neon, R.string.effect_neon_summary),
+            new EffectSpec("speed", R.string.effect_speed, R.string.effect_speed_summary, R.string.gradient_gusts,
+                    lin(R.string.fx_threshold, 0.0f, 1.0f, 100, 2),
+                    lin(R.string.fx_range, 0.01f, 1.0f, 99, 2),
+                    lin(R.string.fx_opacity, 0.0f, 1.0f, 100, 2)),
+            new EffectSpec("firefly", R.string.effect_firefly, R.string.effect_firefly_summary, R.string.gradient_random,
+                    lin(R.string.fx_amount, 0.0f, 1.0f, 100, 2),
+                    lin(R.string.fx_size, 2.0f, 30.0f, 56, 1),
+                    exp(R.string.fx_pulse_rate, 0.02f, 3.0f, 100, 2),
+                    lin(R.string.fx_pulse_sharpness, 0.5f, 10.0f, 95, 1)),
+            new EffectSpec("snow", R.string.effect_snow, R.string.effect_snow_summary, R.string.gradient_random,
+                    lin(R.string.fx_size, 0.5f, 8.0f, 75, 1),
+                    lin(R.string.fx_size_variation, 0.0f, 1.0f, 100, 2),
+                    lin(R.string.fx_fall, 0.0f, 1.0f, 100, 2),
+                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2)),
+            new EffectSpec("comet", R.string.effect_comet, R.string.effect_comet_summary, R.string.gradient_comet,
+                    lin(R.string.fx_head_size, 1.0f, 10.0f, 90, 1),
+                    lin(R.string.fx_white_core, 0.0f, 1.0f, 100, 2),
+                    exp(R.string.fx_tail_length, 0.25f, 8.0f, 100, 2),
+                    lin(R.string.fx_halo, 0.0f, 1.0f, 100, 2)),
+            new EffectSpec("ink", R.string.effect_ink, R.string.effect_ink_summary, R.string.gradient_calm_fast,
+                    lin(R.string.fx_width, 1.0f, 8.0f, 70, 1),
+                    exp(R.string.fx_linger, 0.25f, 10.0f, 100, 2),
+                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2),
+                    lin(R.string.fx_density, 0.0f, 1.0f, 100, 2)),
+            new EffectSpec("neon", R.string.effect_neon, R.string.effect_neon_summary, R.string.gradient_calm_fast,
+                    lin(R.string.fx_radius, 0.5f, 4.0f, 70, 2),
+                    lin(R.string.fx_brightness, 0.0f, 5.0f, 100, 2),
+                    lin(R.string.fx_quality, 0.0f, 1.0f, 1, 0),
+                    lin(R.string.fx_pulse, 0.0f, 1.0f, 100, 2)),
     };
 
     public static final int EFFECT_COUNT = EFFECTS.length;
@@ -152,7 +204,8 @@ public final class CustomTheme {
     private static volatile int[] colors; // array values immutable once set
     private static volatile float[] params;
     private static volatile int effects = -1; // bitmask of 1 << EFFECT_*, -1 if not loaded
-    private static volatile int[] effectColors;
+    private static volatile int[] effectColors; // [EFFECT_COUNT starts, then EFFECT_COUNT ends]
+    private static volatile float[] effectParams; // [effect * EFFECT_PARAM_COUNT + param]
 
     private CustomTheme() {
     }
@@ -232,7 +285,10 @@ public final class CustomTheme {
         return (effects(context) & (1 << effect)) != 0;
     }
 
-    /** The effect colors (packed 0xAARRGGBB, the alpha is the strength). */
+    /**
+     * The effect gradient colors (packed 0xAARRGGBB, the alpha is the
+     * strength), the starts then the ends, see {@link #effectColorIndex}.
+     */
     public static int[] effectColors(Context context) {
         int[] current = effectColors;
         if (current == null) {
@@ -247,28 +303,73 @@ public final class CustomTheme {
         return current.clone();
     }
 
-    public static int effectColor(Context context, int effect) {
-        return effectColors(context)[effect];
+    public static int effectColorIndex(int effect, boolean end) {
+        return end ? EFFECT_COUNT + effect : effect;
+    }
+
+    public static int effectColor(Context context, int effect, boolean end) {
+        return effectColors(context)[effectColorIndex(effect, end)];
     }
 
     public static int[] defaultEffectColors() {
-        final int[] result = new int[EFFECT_COUNT];
+        final int[] result = new int[EFFECT_COUNT * 2];
         for (int i = 0; i < EFFECT_COUNT; i++) {
-            result[i] = WindyWallpaperNative.effectColor(i);
+            result[effectColorIndex(i, false)] = WindyWallpaperNative.effectColor(i, false);
+            result[effectColorIndex(i, true)] = WindyWallpaperNative.effectColor(i, true);
+        }
+        return result;
+    }
+
+    /** The effect params, see {@link #effectParamIndex}. */
+    public static float[] effectParams(Context context) {
+        float[] current = effectParams;
+        if (current == null) {
+            synchronized (CustomTheme.class) {
+                current = effectParams;
+                if (current == null) {
+                    current = parseEffectParams(Prefs.get(context).getString(Prefs.KEY_CUSTOM_EFFECT_PARAMS, null));
+                    effectParams = current;
+                }
+            }
+        }
+        return current.clone();
+    }
+
+    public static int effectParamIndex(int effect, int param) {
+        return effect * EFFECT_PARAM_COUNT + param;
+    }
+
+    public static float effectParam(Context context, int effect, int param) {
+        return effectParams(context)[effectParamIndex(effect, param)];
+    }
+
+    public static float[] defaultEffectParams() {
+        final float[] result = new float[EFFECT_COUNT * EFFECT_PARAM_COUNT];
+        for (int i = 0; i < EFFECT_COUNT; i++) {
+            for (int p = 0; p < EFFECT_PARAM_COUNT; p++) {
+                result[effectParamIndex(i, p)] = WindyWallpaperNative.effectParam(i, p);
+            }
         }
         return result;
     }
 
     /**
      * Updates the effects, applying them to the active renderers. The colors
-     * may be null to preserve the current value. See {@link #set} for persist.
+     * and params may be null to preserve the current value. See {@link #set}
+     * for persist.
      */
-    public static void setEffects(Context context, int nextEffects, int[] nextColors, boolean persist) {
+    public static void setEffects(Context context, int nextEffects, int[] nextColors, float[] nextParams, boolean persist) {
         if (nextColors != null) {
-            if (nextColors.length != EFFECT_COUNT) {
-                throw new IllegalArgumentException("expected " + EFFECT_COUNT + " effect colors");
+            if (nextColors.length != EFFECT_COUNT * 2) {
+                throw new IllegalArgumentException("expected " + EFFECT_COUNT * 2 + " effect colors");
             }
             effectColors = nextColors.clone();
+        }
+        if (nextParams != null) {
+            if (nextParams.length != EFFECT_COUNT * EFFECT_PARAM_COUNT) {
+                throw new IllegalArgumentException("expected " + EFFECT_COUNT * EFFECT_PARAM_COUNT + " effect params");
+            }
+            effectParams = nextParams.clone();
         }
         effects = nextEffects & EFFECT_MASK;
         if (persist) {
@@ -281,17 +382,42 @@ public final class CustomTheme {
         final int current = effects(context);
         final int next = enabled ? current | (1 << effect) : current & ~(1 << effect);
         if (next != current) {
-            setEffects(context, next, null, persist);
+            setEffects(context, next, null, null, persist);
         }
     }
 
-    public static void setEffectColor(Context context, int effect, int argb, boolean persist) {
+    public static void setEffectColor(Context context, int effect, boolean end, int argb, boolean persist) {
         final int[] next = effectColors(context);
-        if (next[effect] == argb) {
+        final int index = effectColorIndex(effect, end);
+        if (next[index] == argb) {
             return;
         }
-        next[effect] = argb;
-        setEffects(context, effects(context), next, persist);
+        next[index] = argb;
+        setEffects(context, effects(context), next, null, persist);
+    }
+
+    public static void setEffectParam(Context context, int effect, int param, float value, boolean persist) {
+        final float[] next = effectParams(context);
+        final int index = effectParamIndex(effect, param);
+        if (next[index] == value) {
+            return;
+        }
+        next[index] = value;
+        setEffects(context, effects(context), null, next, persist);
+    }
+
+    /** Resets one effect's colors and params to the defaults (keeping it on or off). */
+    public static void resetEffect(Context context, int effect, boolean persist) {
+        final int[] colors = effectColors(context);
+        final int[] defaultColors = defaultEffectColors();
+        colors[effectColorIndex(effect, false)] = defaultColors[effectColorIndex(effect, false)];
+        colors[effectColorIndex(effect, true)] = defaultColors[effectColorIndex(effect, true)];
+        final float[] params = effectParams(context);
+        final float[] defaultParams = defaultEffectParams();
+        for (int p = 0; p < EFFECT_PARAM_COUNT; p++) {
+            params[effectParamIndex(effect, p)] = defaultParams[effectParamIndex(effect, p)];
+        }
+        setEffects(context, effects(context), colors, params, persist);
     }
 
     /**
@@ -354,6 +480,7 @@ public final class CustomTheme {
         }
         edit.putInt(Prefs.KEY_CUSTOM_EFFECTS, effects(context));
         edit.putString(Prefs.KEY_CUSTOM_EFFECT_COLORS, formatColors(effectColors(context)));
+        edit.putString(Prefs.KEY_CUSTOM_EFFECT_PARAMS, formatParams(effectParams(context)));
         edit.apply();
     }
 
@@ -395,13 +522,15 @@ public final class CustomTheme {
         public final float[] params;
         public final int effects;
         public final int[] effectColors;
+        public final float[] effectParams;
 
-        Preset(String name, int[] colors, float[] params, int effects, int[] effectColors) {
+        Preset(String name, int[] colors, float[] params, int effects, int[] effectColors, float[] effectParams) {
             this.name = name;
             this.colors = colors;
             this.params = params;
             this.effects = effects;
             this.effectColors = effectColors;
+            this.effectParams = effectParams;
         }
 
         /**
@@ -409,7 +538,8 @@ public final class CustomTheme {
          */
         public boolean matches(Context context) {
             return Arrays.equals(colors, colors(context)) && Arrays.equals(params, params(context))
-                    && effects == effects(context) && Arrays.equals(effectColors, effectColors(context));
+                    && effects == effects(context) && Arrays.equals(effectColors, effectColors(context))
+                    && Arrays.equals(effectParams, effectParams(context));
         }
     }
 
@@ -433,7 +563,8 @@ public final class CustomTheme {
                     // presets saved before the effects existed have none
                     final int effects = obj.optInt("effects", 0) & EFFECT_MASK;
                     final int[] effectColors = parseEffectColors(obj.optString("effect_colors", null));
-                    presets.add(new Preset(name, parseColors(obj.optString("colors", null)), params, effects, effectColors));
+                    final float[] effectParams = parseEffectParams(obj.optString("effect_params", null));
+                    presets.add(new Preset(name, parseColors(obj.optString("colors", null)), params, effects, effectColors, effectParams));
                 }
             }
         } catch (JSONException ex) {
@@ -456,7 +587,7 @@ public final class CustomTheme {
         if (name.isEmpty()) {
             return;
         }
-        final Preset current = new Preset(name, colors(context), params(context), effects(context), effectColors(context));
+        final Preset current = new Preset(name, colors(context), params(context), effects(context), effectColors(context), effectParams(context));
         final List<Preset> presets = presets(context);
         boolean replaced = false;
         for (int i = 0; i < presets.size(); i++) {
@@ -498,6 +629,7 @@ public final class CustomTheme {
         Prefs.get(context).edit().putString(Prefs.KEY_CUSTOM_PRESET, preset.name).apply();
         effects = preset.effects;
         effectColors = preset.effectColors.clone();
+        effectParams = preset.effectParams.clone();
         set(context, preset.colors, preset.params, true); // also persists the effects
     }
 
@@ -526,6 +658,7 @@ public final class CustomTheme {
                 }
                 obj.put("effects", preset.effects);
                 obj.put("effect_colors", formatColors(preset.effectColors));
+                obj.put("effect_params", formatParams(preset.effectParams));
                 arr.put(obj);
             }
         } catch (JSONException ex) {
@@ -563,7 +696,8 @@ public final class CustomTheme {
             return result;
         }
         final String[] parts = saved.split(",", -1);
-        for (int i = 0; i < EFFECT_COUNT && i < parts.length; i++) {
+        // older saves only have the starts, which come first
+        for (int i = 0; i < result.length && i < parts.length; i++) {
             try {
                 result[i] = (int) Long.parseLong(parts[i].trim(), 16);
             } catch (NumberFormatException ex) {
@@ -571,6 +705,33 @@ public final class CustomTheme {
             }
         }
         return result;
+    }
+
+    private static float[] parseEffectParams(String saved) {
+        final float[] result = defaultEffectParams();
+        if (saved == null || saved.isEmpty()) {
+            return result;
+        }
+        final String[] parts = saved.split(",", -1);
+        for (int i = 0; i < result.length && i < parts.length; i++) {
+            try {
+                result[i] = Float.parseFloat(parts[i].trim());
+            } catch (NumberFormatException ex) {
+                Log.w(TAG, "ignoring invalid saved effect param " + parts[i]);
+            }
+        }
+        return result;
+    }
+
+    private static String formatParams(float[] params) {
+        final StringBuilder sb = new StringBuilder();
+        for (final float param : params) {
+            if (sb.length() != 0) {
+                sb.append(',');
+            }
+            sb.append(Float.toString(param)); // locale-independent
+        }
+        return sb.toString();
     }
 
     private static int[] parseColors(String saved) {

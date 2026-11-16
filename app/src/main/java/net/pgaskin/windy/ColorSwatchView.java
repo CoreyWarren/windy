@@ -7,6 +7,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -27,6 +28,8 @@ public class ColorSwatchView extends View {
     private final float radius;
 
     private int color = Color.TRANSPARENT;
+    private int endColor = Color.TRANSPARENT;
+    private boolean gradient;
 
     public ColorSwatchView(Context context) {
         this(context, null);
@@ -43,8 +46,19 @@ public class ColorSwatchView extends View {
     }
 
     public void setColor(int color) {
-        if (this.color != color) {
+        if (this.color != color || gradient) {
             this.color = color;
+            this.gradient = false;
+            invalidate();
+        }
+    }
+
+    /** Shows a left-to-right gradient instead of a single color. */
+    public void setGradient(int start, int end) {
+        if (this.color != start || this.endColor != end || !gradient) {
+            this.color = start;
+            this.endColor = end;
+            this.gradient = true;
             invalidate();
         }
     }
@@ -57,10 +71,13 @@ public class ColorSwatchView extends View {
     protected void onDraw(Canvas canvas) {
         final float inset = borderPaint.getStrokeWidth() / 2;
         bounds.set(inset, inset, getWidth() - inset, getHeight() - inset);
-        if (Color.alpha(color) != 0xFF) {
+        if (Color.alpha(color) != 0xFF || (gradient && Color.alpha(endColor) != 0xFF)) {
             canvas.drawRoundRect(bounds, radius, radius, checkerPaint);
         }
-        fillPaint.setColor(color);
+        fillPaint.setColor(gradient ? Color.WHITE : color);
+        fillPaint.setShader(gradient
+                ? new LinearGradient(bounds.left, 0, bounds.right, 0, color, endColor, Shader.TileMode.CLAMP)
+                : null);
         canvas.drawRoundRect(bounds, radius, radius, fillPaint);
         canvas.drawRoundRect(bounds, radius, radius, borderPaint);
     }

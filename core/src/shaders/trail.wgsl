@@ -16,7 +16,7 @@ struct VsOut {
 // ink effect: wider, softer strokes
 fn half_width() -> f32 {
     if (has_fx(g.effects, FX_INK)) {
-        return g.line_half_width * 2.5;
+        return g.line_half_width * g.fx_ink_p.x; // width
     }
     return g.line_half_width;
 }
@@ -69,7 +69,9 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     out.alpha = life * r;
 
     // gusts get the speed color
-    out.speed = select(0.0, smoothstep(0.15, 0.6, p.speed), has_fx(g.effects, FX_SPEED));
+    let lo = g.fx_speed_p.x; // threshold
+    let hi = lo + max(g.fx_speed_p.y, 0.01); // range
+    out.speed = select(0.0, smoothstep(lo, hi, p.speed), has_fx(g.effects, FX_SPEED));
     return out;
 }
 
@@ -83,7 +85,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let dn = dist / half_width();
     var falloff = 1.0 - smoothstep(0.1, 1.0, dn * dn);
     if (has_fx(g.effects, FX_INK)) {
-        falloff = exp(-3.0 * dn * dn) * (1.0 - smoothstep(0.8, 1.0, dn)); // soft bleed
+        let k = mix(8.0, 0.5, g.fx_ink_p.z); // softness
+        falloff = exp(-k * dn * dn) * (1.0 - smoothstep(0.8, 1.0, dn)); // soft bleed
     }
 
     let alpha = falloff * in.alpha * g.particle_opacity;

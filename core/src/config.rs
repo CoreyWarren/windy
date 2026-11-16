@@ -41,30 +41,40 @@ pub struct Config {
     pub effects: Effects,
 }
 
-/// Optional rendering effects, each with its own color (the alpha is the
-/// effect strength).
+/// Optional rendering effects, each with a two-color gradient (the alpha is
+/// the effect strength) and up to four params.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Effects {
     /// Bitmask of `1 << Effects::*`.
     pub enabled: u32,
-    /// Indexed by `Effects::*`.
+    /// The gradient start colors, indexed by `Effects::*`.
     pub colors: [[f32; 4]; Effects::COUNT],
+    /// The gradient end colors, indexed by `Effects::*`.
+    pub colors2: [[f32; 4]; Effects::COUNT],
+    /// The params, indexed by `Effects::*`, see each effect for the meaning.
+    pub params: [[f32; 4]; Effects::COUNT],
 }
 
 impl Effects {
     // do not change the order (it must match the shaders, the Android app, and
     // saved prefs)
-    /// Gusts take on the color.
+    /// Gusts take on the color, from the start color for gusts to the end
+    /// color for the fastest wind. Params: (threshold, range, opacity, -).
     pub const SPEED: usize = 0;
-    /// Some particles glow and flicker.
+    /// Some particles glow and flicker, each a random color in the gradient.
+    /// Params: (amount, size, pulse rate in Hz, pulse sharpness).
     pub const FIREFLY: usize = 1;
-    /// Drifting dots instead of streaks.
+    /// Drifting dots instead of streaks, each a random color in the gradient.
+    /// Params: (size, size variation, fall speed, softness).
     pub const SNOW: usize = 2;
-    /// A bright head on each streak.
+    /// A bright head on each streak in the start color, with a halo in the end
+    /// color. Params: (head size, white core, tail length, halo).
     pub const COMET: usize = 3;
-    /// Wide, soft, slow-fading strokes.
+    /// Wide, soft, slow-fading strokes, from the start color in calm areas to
+    /// the end color in fast ones. Params: (width, linger, softness, density).
     pub const INK: usize = 4;
-    /// A glow around the streaks.
+    /// A glow around the streaks, from the start color in calm areas to the
+    /// end color in fast ones. Params: (radius, brightness, quality, pulse).
     pub const NEON: usize = 5;
     pub const COUNT: usize = 6;
 
@@ -78,10 +88,39 @@ impl Effects {
             [0.55, 0.80, 1.00, 0.80], // ink
             [0.00, 1.00, 0.85, 0.80], // neon
         ],
+        colors2: [
+            [1.00, 0.15, 0.10, 0.95], // speed
+            [0.55, 1.00, 0.40, 1.00], // firefly
+            [0.75, 0.88, 1.00, 0.85], // snow
+            [0.40, 0.60, 1.00, 0.80], // comet
+            [1.00, 0.60, 0.85, 0.80], // ink
+            [1.00, 0.20, 0.80, 0.80], // neon
+        ],
+        params: [
+            [0.15, 0.45, 0.75, 0.0], // speed
+            [0.35, 8.0, 0.2, 3.0],   // firefly
+            [2.5, 0.6, 0.0, 0.45],   // snow
+            [3.0, 0.6, 1.0, 0.3],    // comet
+            [2.5, 3.3, 0.6, 0.85],   // ink
+            [1.0, 1.6, 1.0, 0.0],    // neon
+        ],
     };
 
     pub fn is_enabled(&self, effect: usize) -> bool {
         effect < Self::COUNT && self.enabled & (1 << effect) != 0
+    }
+
+    /// How much slower the trails fade (ink linger and comet tail length).
+    pub fn trail_linger(&self) -> f32 {
+        let mut linger: Option<f32> = None;
+        if self.is_enabled(Self::INK) {
+            linger = Some(self.params[Self::INK][1]);
+        }
+        if self.is_enabled(Self::COMET) {
+            let tail = self.params[Self::COMET][2];
+            linger = Some(linger.map_or(tail, |l| l.max(tail)));
+        }
+        linger.unwrap_or(1.0).clamp(0.05, 100.0)
     }
 }
 

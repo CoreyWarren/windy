@@ -8,9 +8,11 @@
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
-    @location(0) local: vec2<f32>,  // px relative to the particle
-    @location(1) radii: vec3<f32>,  // (snow, comet, firefly) px, 0 if unused
-    @location(2) weight: vec3<f32>, // (snow, comet, firefly) opacity
+    @location(0) local: vec2<f32>,      // px relative to the particle
+    @location(1) radii: vec4<f32>,      // (snow, comet head, firefly, comet halo) px, 0 if unused
+    @location(2) weight: vec3<f32>,     // (snow, comet, firefly) opacity
+    @location(3) snow_color: vec4<f32>, // this flake's gradient color
+    @location(4) fly_color: vec4<f32>,  // this firefly's gradient color
 };
 
 @vertex
@@ -21,27 +23,38 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     // fade in on spawn, out on death (same as the trails)
     let life = smoothstep(0.0, 0.05, 1.0 - p.age) * smoothstep(0.0, 0.25, p.age);
 
-    var radii = vec3<f32>(0.0);
+    var radii = vec4<f32>(0.0);
     var weight = vec3<f32>(0.0);
+    var snow_color = vec4<f32>(0.0);
+    var fly_color = vec4<f32>(0.0);
 
     if (has_fx(g.effects, FX_SNOW)) {
-        radii.x = base * (1.4 + 2.2 * rand(p.uv * 3.1 + vec2<f32>(0.17))); // mixed flake sizes
-        weight.x = life * g.fx_snow.a;
+        // p: (size, size variation, fall, softness)
+        let r = rand(p.uv * 3.1 + vec2<f32>(0.17));
+        let variation = 1.0 + g.fx_snow_p.y * (r - 0.5) * 1.6;
+        radii.x = base * g.fx_snow_p.x * max(variation, 0.1);
+        snow_color = mix(g.fx_snow_a, g.fx_snow_b, rand(p.uv * 4.7 + vec2<f32>(0.53)));
+        weight.x = life * snow_color.a;
     }
     if (has_fx(g.effects, FX_COMET)) {
-        radii.y = base * 3.0;
-        weight.y = life * g.fx_comet.a;
+        // p: (head size, white core, tail length, halo)
+        radii.y = base * g.fx_comet_p.x;
+        radii.w = select(0.0, radii.y * mix(1.5, 5.0, g.fx_comet_p.w), g.fx_comet_p.w > 0.0);
+        weight.y = life * g.fx_comet_a.a;
     }
-    if (has_fx(g.effects, FX_FIREFLY) && rand(p.uv * 7.7 + vec2<f32>(0.31)) < 0.35) {
-        // integer cycles per 64s so the wrapped time doesn't cause a jump
-        let freq = (2.0 * PI / 64.0) * (6.0 + floor(rand(p.uv * 5.3) * 14.0));
+    if (has_fx(g.effects, FX_FIREFLY) && rand(p.uv * 7.7 + vec2<f32>(0.31)) < g.fx_firefly_p.x) {
+        // p: (amount, size, pulse rate in Hz, pulse sharpness)
+        // whole cycles per 64s so the wrapped time doesn't cause a jump
+        let cycles = max(round(g.fx_firefly_p.z * 64.0 * (0.6 + rand(p.uv * 5.3))), 1.0);
+        let freq = (2.0 * PI / 64.0) * cycles;
         let phase = rand(p.uv * 9.1) * 2.0 * PI;
-        let flicker = pow(max(sin(g.time_acc * freq + phase), 0.0), 3.0);
-        radii.z = base * 8.0;
-        weight.z = life * flicker * g.fx_firefly.a;
+        let flicker = pow(max(sin(g.time_acc * freq + phase), 0.0), max(g.fx_firefly_p.w, 0.1));
+        radii.z = base * g.fx_firefly_p.y;
+        fly_color = mix(g.fx_firefly_a, g.fx_firefly_b, rand(p.uv * 6.3 + vec2<f32>(0.71)));
+        weight.z = life * flicker * fly_color.a;
     }
 
-    let radius = max(max(radii.x, radii.y), radii.z) + 1.0;
+    let radius = max(max(radii.x, radii.y), max(radii.z, radii.w)) + 1.0;
 
     // trail position to screen position (inverse of the composite mapping)
     let parallax = vec2<f32>(g.offset_x * (g.size.x - 1.0) * 0.5, 0.0);
@@ -63,6 +76,8 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     out.local = offset;
     out.radii = radii;
     out.weight = weight;
+    out.snow_color = snow_color;
+    out.fly_color = fly_color;
     return out;
 }
 
@@ -72,27 +87,35 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     var rgb = vec3<f32>(0.0); // premultiplied
     var a = 0.0;
 
-    // snow: soft round flakes
+    // snow: round flakes, hard to soft edges
     if (in.radii.x > 0.0) {
-        let k = (1.0 - smoothstep(in.radii.x * 0.55, in.radii.x, d)) * in.weight.x;
-        rgb = rgb + g.fx_snow.rgb * k;
+        let edge = mix(0.95, 0.05, g.fx_snow_p.w);
+        let k = (1.0 - smoothstep(in.radii.x * edge, in.radii.x, d)) * in.weight.x;
+        rgb = rgb + in.snow_color.rgb * k;
         a = a + k;
     }
 
-    // comet: bright head with a hot core
+    // comet: head in the first color with a white core, halo in the second
     if (in.radii.y > 0.0) {
         let n = d / in.radii.y;
-        let k = (exp(-4.0 * n * n) + 0.6 * exp(-30.0 * n * n)) * in.weight.y;
-        let head = mix(g.fx_comet.rgb, vec3<f32>(1.0), exp(-30.0 * n * n) * 0.6);
+        let hot = exp(-30.0 * n * n);
+        let k = (exp(-4.0 * n * n) + 0.6 * hot) * in.weight.y;
+        let head = mix(g.fx_comet_a.rgb, vec3<f32>(1.0), hot * g.fx_comet_p.y);
         rgb = rgb + head * k;
         a = a + k;
+        if (in.radii.w > 0.0) {
+            let h = d / in.radii.w;
+            let kh = exp(-5.0 * h * h) * 0.35 * g.fx_comet_b.a * in.weight.y;
+            rgb = rgb + g.fx_comet_b.rgb * kh;
+            a = a + kh * 0.5;
+        }
     }
 
     // firefly: wide flickering glow
     if (in.radii.z > 0.0) {
         let n = d / in.radii.z;
         let k = (exp(-6.0 * n * n) + 0.8 * exp(-60.0 * n * n)) * in.weight.z;
-        rgb = rgb + g.fx_firefly.rgb * k;
+        rgb = rgb + in.fly_color.rgb * k;
         a = a + k * 0.5; // mostly additive, so it glows
     }
 

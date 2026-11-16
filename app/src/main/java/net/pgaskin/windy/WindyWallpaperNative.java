@@ -59,11 +59,13 @@ public final class WindyWallpaperNative implements AutoCloseable {
 
     /**
      * Replaces the effects, with enabled being a bitmask of
-     * {@code 1 << CustomTheme.EFFECT_*}, and the colors (packed 0xAARRGGBB,
-     * the alpha is the strength) indexed by {@code CustomTheme.EFFECT_*}.
+     * {@code 1 << CustomTheme.EFFECT_*}, the colors (packed 0xAARRGGBB, the
+     * alpha is the strength) being the gradient starts then ends indexed by
+     * {@code CustomTheme.EFFECT_*}, and the params being
+     * {@code CustomTheme.EFFECT_PARAM_COUNT} per effect.
      */
-    public void setEffects(int enabled, int[] colors) {
-        nativeSetEffects(handle, enabled, colors);
+    public void setEffects(int enabled, int[] colors, float[] params) {
+        nativeSetEffects(handle, enabled, colors, params);
     }
 
     /** The name of the GPU the renderer is using, or null if unknown. */
@@ -118,9 +120,14 @@ public final class WindyWallpaperNative implements AutoCloseable {
         return nativeCoordinateBounds(lng, lat, aspect);
     }
 
-    /** The default color for an effect (packed 0xAARRGGBB). */
-    public static int effectColor(int effect) {
-        return nativeEffectColor(effect);
+    /** The default gradient start or end color for an effect (packed 0xAARRGGBB). */
+    public static int effectColor(int effect, boolean end) {
+        return nativeEffectColor(effect, end ? 1 : 0);
+    }
+
+    /** The default value of an effect param. */
+    public static float effectParam(int effect, int param) {
+        return nativeEffectParam(effect, param);
     }
 
     public static float themeParam(int themeIndex, int param) {
@@ -144,8 +151,9 @@ public final class WindyWallpaperNative implements AutoCloseable {
     private static native void nativeSetOffset(long handle, float offset);
     private static native void nativeSetUserLocation(long handle, float lng, float lat);
     private static native void nativeSetCustom(long handle, int[] colors, float[] params);
-    private static native void nativeSetEffects(long handle, int enabled, int[] colors);
-    private static native int nativeEffectColor(int effect);
+    private static native void nativeSetEffects(long handle, int enabled, int[] colors, float[] params);
+    private static native int nativeEffectColor(int effect, int end);
+    private static native float nativeEffectParam(int effect, int param);
     private static native void nativeSetWindField(long handle, byte[] rgba, int width, int height);
     private static native String nativeGpuModel(long handle);
     private static native void nativeDestroy(long handle);

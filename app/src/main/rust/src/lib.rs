@@ -26,7 +26,11 @@ const PARAM_LINE_HALF_WIDTH: usize = 0;
 const PARAM_PARTICLE_OPACITY: usize = 1;
 const PARAM_ALPHA_DECAY: usize = 2;
 const PARAM_WIND_SPEED: usize = 3;
-const PARAM_COUNT: usize = 4;
+const PARAM_PARTICLE_COUNT: usize = 4;
+const PARAM_PARTICLE_LIFE: usize = 5;
+const PARAM_COUNT: usize = 6;
+
+const EFFECT_PARAM_COUNT: usize = 4; // per effect
 
 struct State {
     surface: wgpu::Surface<'static>,
@@ -317,6 +321,8 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetCust
         config.particle_opacity = params_buf[PARAM_PARTICLE_OPACITY];
         config.alpha_decay = params_buf[PARAM_ALPHA_DECAY];
         config.wind_speed = params_buf[PARAM_WIND_SPEED];
+        config.particle_count = (params_buf[PARAM_PARTICLE_COUNT].round() as u32).clamp(64, 65536);
+        config.particle_life = params_buf[PARAM_PARTICLE_LIFE].clamp(0.1, 600.0);
         st.renderer.set_config(&st.device, config); // note: the colors are instant, but the params ease
         Ok::<(), jni::errors::Error>(()) // leave unchanged on error
     })
@@ -330,6 +336,7 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetEffe
     handle: jlong,
     enabled: jint,
     colors: JIntArray,
+    params: JFloatArray,
 ) {
     if handle == 0 {
         return;
@@ -337,13 +344,20 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetEffe
     let st = unsafe { state(handle) };
     env.with_env(|env| {
         // with_env catches panics
-        let mut colors_buf = [0 as jint; Effects::COUNT];
+        let mut colors_buf = [0 as jint; Effects::COUNT * 2]; // starts, then ends
+        let mut params_buf = [0 as jfloat; Effects::COUNT * EFFECT_PARAM_COUNT];
         colors.get_region(env, 0, &mut colors_buf)?;
+        params.get_region(env, 0, &mut params_buf)?;
 
         let mut config = st.renderer.config().clone();
-        config.effects.enabled = enabled as u32;
-        for (dst, src) in config.effects.colors.iter_mut().zip(colors_buf) {
-            *dst = unpack_argb(src);
+        let fx = &mut config.effects;
+        fx.enabled = enabled as u32;
+        for i in 0..Effects::COUNT {
+            fx.colors[i] = unpack_argb(colors_buf[i]);
+            fx.colors2[i] = unpack_argb(colors_buf[Effects::COUNT + i]);
+            for j in 0..EFFECT_PARAM_COUNT {
+                fx.params[i][j] = params_buf[i * EFFECT_PARAM_COUNT + j];
+            }
         }
         if config.effects != st.renderer.config().effects {
             st.renderer.set_config(&st.device, config);
@@ -358,9 +372,27 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeEffectC
     _env: EnvUnowned,
     _class: JClass,
     effect: jint,
+    end: jint, // 0 for the start color
 ) -> jint {
     let effect = (effect.max(0) as usize).min(Effects::COUNT - 1);
-    pack_argb(Effects::DEFAULT.colors[effect])
+    let colors = if end != 0 {
+        &Effects::DEFAULT.colors2
+    } else {
+        &Effects::DEFAULT.colors
+    };
+    pack_argb(colors[effect])
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeEffectParam(
+    _env: EnvUnowned,
+    _class: JClass,
+    effect: jint,
+    param: jint,
+) -> jfloat {
+    let effect = (effect.max(0) as usize).min(Effects::COUNT - 1);
+    let param = (param.max(0) as usize).min(EFFECT_PARAM_COUNT - 1);
+    Effects::DEFAULT.params[effect][param]
 }
 
 #[unsafe(no_mangle)]
@@ -540,6 +572,8 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeThemePa
         PARAM_LINE_HALF_WIDTH => config.line_half_width, // dp, scaled when applied
         PARAM_PARTICLE_OPACITY => config.particle_opacity,
         PARAM_ALPHA_DECAY => config.alpha_decay,
+        PARAM_PARTICLE_COUNT => config.particle_count as f32,
+        PARAM_PARTICLE_LIFE => config.particle_life,
         _ => config.wind_speed, // PARAM_WIND_SPEED and anything unknown
     };
     value as jfloat
