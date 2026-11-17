@@ -47,6 +47,9 @@ struct Globals {
     fx_neon_d: vec4<f32>,
     fx_neon_p: vec4<f32>,
     fx_neon_q: vec4<f32>,
+    flow_a: vec4<f32>,      // (variation, clumping, real wind, turbulence)
+    flow_b: vec4<f32>,      // (swirl size, flow change speed, warp, momentum)
+    flow_c: vec4<f32>,      // (float/sink, -, -, -)
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)
@@ -62,7 +65,7 @@ struct Globals {
     particle_count: u32,
     srgb_output: u32,
     effects: u32,           // FX_* bitmask
-    _pad1: u32,
+    flow_time: f32,         // flow noise time, wraps at FLOW_PERIOD
 };
 
 struct Particle {
@@ -71,6 +74,9 @@ struct Particle {
     uv: vec2<f32>,    // stable per-particle seed coordinate
     age: f32,         // remaining life, ~[0,1]
     speed: f32,       // normalized wind speed at pos [0,1]
+    vel: vec2<f32>,   // current velocity (for momentum)
+    seed: f32,        // random per spawn, for the particle's traits
+    _pad: f32,
 };
 
 // effect bits (must match Effects in config.rs)
@@ -116,6 +122,57 @@ fn fx_gradient(c0: vec4<f32>, c1: vec4<f32>, c2: vec4<f32>, c3: vec4<f32>, q: ve
         j = select(n - 1.0, 0.0, looped);
     }
     return mix(fx_stop(c0, c1, c2, c3, i), fx_stop(c0, c1, c2, c3, j), clamp(x - i, 0.0, 1.0));
+}
+
+// per-particle traits (variation 0 = all the same)
+fn trait_rand(seed: f32, k: f32) -> f32 {
+    return rand(vec2<f32>(fract(seed * 13.7 + k * 0.618) * 31.0, k * 3.1 + 0.5));
+}
+
+fn trait_width(seed: f32, variation: f32) -> f32 {
+    return exp2(variation * (trait_rand(seed, 1.0) - 0.5) * 2.4); // ~0.4x to 2.3x
+}
+
+fn trait_opacity(seed: f32, variation: f32) -> f32 {
+    return 1.0 - variation * 0.7 * trait_rand(seed, 2.0);
+}
+
+fn trait_speed(seed: f32, variation: f32) -> f32 {
+    return 1.0 + variation * (trait_rand(seed, 3.0) - 0.5) * 1.4; // 0.3x to 1.7x
+}
+
+fn trait_life(seed: f32, variation: f32) -> f32 {
+    return exp2(variation * (trait_rand(seed, 4.0) - 0.5) * 1.6); // how fast it ages
+}
+
+// flow noise time wraps at this, and the noise is periodic in time to match
+const FLOW_PERIOD: f32 = 256.0;
+
+fn hash_u(v: u32) -> u32 {
+    let s = v * 747796405u + 2891336453u;
+    let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    return (w >> 22u) ^ w;
+}
+
+fn hash3(c: vec3<i32>) -> f32 {
+    let h = hash_u(bitcast<u32>(c.x) ^ hash_u(bitcast<u32>(c.y) ^ hash_u(bitcast<u32>(c.z))));
+    return f32(h) / 4294967295.0;
+}
+
+// smooth value noise in [0,1], periodic in z
+fn vnoise3(p: vec3<f32>, period: f32) -> f32 {
+    let i = floor(p);
+    let f = p - i;
+    let u = f * f * (3.0 - 2.0 * f);
+    let x0 = i32(i.x);
+    let y0 = i32(i.y);
+    let z0 = i32(i.z - period * floor(i.z / period));
+    let z1 = i32((i.z + 1.0) - period * floor((i.z + 1.0) / period));
+    let a = mix(hash3(vec3<i32>(x0, y0, z0)), hash3(vec3<i32>(x0 + 1, y0, z0)), u.x);
+    let b = mix(hash3(vec3<i32>(x0, y0 + 1, z0)), hash3(vec3<i32>(x0 + 1, y0 + 1, z0)), u.x);
+    let c = mix(hash3(vec3<i32>(x0, y0, z1)), hash3(vec3<i32>(x0 + 1, y0, z1)), u.x);
+    let d = mix(hash3(vec3<i32>(x0, y0 + 1, z1)), hash3(vec3<i32>(x0 + 1, y0 + 1, z1)), u.x);
+    return mix(mix(a, b, u.y), mix(c, d, u.y), u.z);
 }
 
 // snow effect: whether a particle is a flake instead of a streak

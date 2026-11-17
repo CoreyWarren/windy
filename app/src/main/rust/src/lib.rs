@@ -29,7 +29,16 @@ const PARAM_WIND_SPEED: usize = 3;
 const PARAM_PARTICLE_COUNT: usize = 4;
 const PARAM_PARTICLE_LIFE: usize = 5;
 const PARAM_TRAIL_FOLLOW_SPEED: usize = 6;
-const PARAM_COUNT: usize = 7;
+const PARAM_VARIATION: usize = 7;
+const PARAM_CLUMPING: usize = 8;
+const PARAM_REAL_WIND: usize = 9;
+const PARAM_TURBULENCE: usize = 10;
+const PARAM_SWIRL_SIZE: usize = 11;
+const PARAM_EVOLUTION: usize = 12;
+const PARAM_WARP: usize = 13;
+const PARAM_MOMENTUM: usize = 14;
+const PARAM_BUOYANCY: usize = 15;
+const PARAM_COUNT: usize = 16;
 
 const EFFECT_PARAM_COUNT: usize = Effects::PARAM_COUNT; // per effect
 
@@ -325,6 +334,15 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetCust
         config.particle_count = (params_buf[PARAM_PARTICLE_COUNT].round() as u32).clamp(64, 65536);
         config.particle_life = params_buf[PARAM_PARTICLE_LIFE].clamp(0.1, 600.0);
         config.trail_follow_speed = params_buf[PARAM_TRAIL_FOLLOW_SPEED] >= 0.5;
+        config.flow.variation = params_buf[PARAM_VARIATION].clamp(0.0, 1.0);
+        config.flow.clumping = params_buf[PARAM_CLUMPING].clamp(0.0, 1.0);
+        config.flow.real_wind = params_buf[PARAM_REAL_WIND].clamp(0.0, 2.0);
+        config.flow.turbulence = params_buf[PARAM_TURBULENCE].clamp(0.0, 4.0);
+        config.flow.swirl_size = params_buf[PARAM_SWIRL_SIZE].clamp(0.05, 20.0);
+        config.flow.evolution = params_buf[PARAM_EVOLUTION].clamp(0.0, 10.0);
+        config.flow.warp = params_buf[PARAM_WARP].clamp(0.0, 2.0);
+        config.flow.momentum = params_buf[PARAM_MOMENTUM].clamp(0.0, 1.0);
+        config.flow.buoyancy = params_buf[PARAM_BUOYANCY].clamp(0.0, 1.0);
         st.renderer.set_config(&st.device, config); // note: the colors are instant, but the params ease
         Ok::<(), jni::errors::Error>(()) // leave unchanged on error
     })
@@ -573,6 +591,15 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeThemePa
         PARAM_ALPHA_DECAY => config.alpha_decay,
         PARAM_PARTICLE_COUNT => config.particle_count as f32,
         PARAM_PARTICLE_LIFE => config.particle_life,
+        PARAM_VARIATION => config.flow.variation,
+        PARAM_CLUMPING => config.flow.clumping,
+        PARAM_REAL_WIND => config.flow.real_wind,
+        PARAM_TURBULENCE => config.flow.turbulence,
+        PARAM_SWIRL_SIZE => config.flow.swirl_size,
+        PARAM_EVOLUTION => config.flow.evolution,
+        PARAM_WARP => config.flow.warp,
+        PARAM_MOMENTUM => config.flow.momentum,
+        PARAM_BUOYANCY => config.flow.buoyancy,
         PARAM_TRAIL_FOLLOW_SPEED => {
             if config.trail_follow_speed {
                 1.0

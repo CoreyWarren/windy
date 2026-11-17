@@ -44,6 +44,56 @@ pub struct Config {
 
     /// Optional rendering effects.
     pub effects: Effects,
+
+    /// How the particles move.
+    pub flow: Flow,
+}
+
+/// How the particles move, on top of the wind field. The defaults behave like
+/// the original.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Flow {
+    /// Per-particle width, speed, opacity, and lifetime differences [0,1].
+    pub variation: f32,
+    /// How unevenly particles spawn (dense currents and empty patches) [0,1].
+    pub clumping: f32,
+    /// How much of the real wind field is used [0,1].
+    pub real_wind: f32,
+    /// How much evolving curl-noise turbulence is added [0,2].
+    pub turbulence: f32,
+    /// Turbulence (and warp and clumping) feature size multiplier.
+    pub swirl_size: f32,
+    /// How fast the turbulence, warp, and clumping change.
+    pub evolution: f32,
+    /// How much the real wind field is slowly warped [0,1].
+    pub warp: f32,
+    /// How slowly particles change direction [0,1] (0 = instantly).
+    pub momentum: f32,
+    /// Per-particle drift up or down [0,1].
+    pub buoyancy: f32,
+}
+
+impl Flow {
+    pub const DEFAULT: Flow = Flow {
+        variation: 0.0,
+        clumping: 0.0,
+        real_wind: 1.0,
+        turbulence: 0.0,
+        swirl_size: 1.0,
+        evolution: 0.3,
+        warp: 0.0,
+        momentum: 0.0,
+        buoyancy: 0.0,
+    };
+
+    /// Flow noise time wraps at this (must match FLOW_PERIOD in the shaders).
+    pub const PERIOD: f32 = 256.0;
+}
+
+impl Default for Flow {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
 }
 
 /// Optional rendering effects, each with a gradient of 2-4 color stops which
@@ -423,6 +473,7 @@ impl Default for Config {
             particle_opacity: 1.0,
             line_half_width: 1.0,
             effects: Effects::DEFAULT,
+            flow: Flow::DEFAULT,
         }
     }
 }

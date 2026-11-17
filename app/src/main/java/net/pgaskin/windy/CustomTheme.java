@@ -115,6 +115,15 @@ public final class CustomTheme {
     public static final int PARAM_PARTICLE_COUNT = 4;
     public static final int PARAM_PARTICLE_LIFE = 5;
     public static final int PARAM_TRAIL_FOLLOW_SPEED = 6; // 0 or 1
+    public static final int PARAM_VARIATION = 7;
+    public static final int PARAM_CLUMPING = 8;
+    public static final int PARAM_REAL_WIND = 9;
+    public static final int PARAM_TURBULENCE = 10;
+    public static final int PARAM_SWIRL_SIZE = 11;
+    public static final int PARAM_EVOLUTION = 12;
+    public static final int PARAM_WARP = 13;
+    public static final int PARAM_MOMENTUM = 14;
+    public static final int PARAM_BUOYANCY = 15;
 
     public static final ParamSpec[] PARAMS = { // [PARAM_*]
             new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false),
@@ -124,6 +133,15 @@ public final class CustomTheme {
             new ParamSpec("particle_count", R.string.param_particle_count, 256, 16384, 63, 0, false),
             new ParamSpec("particle_life", R.string.param_particle_life, 1.0f, 30.0f, 58, 1, false),
             new ParamSpec("trail_follow_speed", R.string.param_trail_follow_speed, 0.0f, 1.0f, 1, 0, false), // on/off
+            new ParamSpec("variation", R.string.param_variation, 0.0f, 1.0f, 100, 2, false),
+            new ParamSpec("clumping", R.string.param_clumping, 0.0f, 1.0f, 100, 2, false),
+            new ParamSpec("real_wind", R.string.param_real_wind, 0.0f, 1.0f, 100, 2, false),
+            new ParamSpec("turbulence", R.string.param_turbulence, 0.0f, 2.0f, 200, 2, false),
+            new ParamSpec("swirl_size", R.string.param_swirl_size, 0.25f, 4.0f, 100, 2, false, true),
+            new ParamSpec("evolution", R.string.param_evolution, 0.0f, 2.0f, 200, 2, false),
+            new ParamSpec("warp", R.string.param_warp, 0.0f, 1.0f, 100, 2, false),
+            new ParamSpec("momentum", R.string.param_momentum, 0.0f, 1.0f, 100, 2, false),
+            new ParamSpec("buoyancy", R.string.param_buoyancy, 0.0f, 1.0f, 100, 2, false),
     };
 
     public static final int PARAM_COUNT = PARAMS.length;

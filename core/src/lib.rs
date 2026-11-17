@@ -26,6 +26,6 @@ mod shaders {
 }
 
 pub use color::{Style, StyleColor, generate};
-pub use config::{Config, Effects, Theme, ThemeColors, ThemeParams};
+pub use config::{Config, Effects, Flow, Theme, ThemeColors, ThemeParams};
 pub use render::Renderer;
 pub use source::ThemeSource;

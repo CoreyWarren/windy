@@ -45,12 +45,13 @@ import java.util.List;
 public final class EditorPanel extends LinearLayout {
     public static final int TAB_COLORS = 0;
     public static final int TAB_MOTION = 1;
-    public static final int TAB_TRAILS = 2;
-    public static final int TAB_EFFECTS = 3;
-    public static final int TAB_PRESETS = 4;
+    public static final int TAB_FLOW = 2;
+    public static final int TAB_TRAILS = 3;
+    public static final int TAB_EFFECTS = 4;
+    public static final int TAB_PRESETS = 5;
 
     private static final int[] TAB_LABELS = {
-            R.string.tab_colors, R.string.tab_motion, R.string.tab_trails, R.string.tab_effects, R.string.tab_presets,
+            R.string.tab_colors, R.string.tab_motion, R.string.tab_flow, R.string.tab_trails, R.string.tab_effects, R.string.tab_presets,
     };
 
     static final int[] EFFECT_ICONS = { // [CustomTheme.EFFECT_*]
@@ -145,9 +146,10 @@ public final class EditorPanel extends LinearLayout {
             final int t = i;
             final TextView tv = new TextView(context);
             tv.setText(TAB_LABELS[t]);
-            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
             tv.setGravity(Gravity.CENTER);
-            tv.setPadding(dp(4), dp(12), dp(4), dp(12));
+            tv.setMaxLines(1);
+            tv.setPadding(dp(2), dp(12), dp(2), dp(12));
             tv.setBackground(selectable());
             tv.setOnClickListener(v -> showTab(t));
             tabViews[t] = tv;
@@ -434,6 +436,9 @@ public final class EditorPanel extends LinearLayout {
                     content.addView(themeParamSlider(p));
                 }
                 break;
+            case TAB_FLOW:
+                buildFlow();
+                break;
             case TAB_TRAILS:
                 buildTrails();
                 break;
@@ -490,6 +495,36 @@ public final class EditorPanel extends LinearLayout {
             host.showGenerateDialog();
         });
         content.addView(generate, spaced(ViewGroup.LayoutParams.WRAP_CONTENT));
+    }
+
+    private void buildFlow() {
+        content.addView(heading(R.string.flow_wind));
+        content.addView(themeParamSlider(CustomTheme.PARAM_REAL_WIND));
+        content.addView(themeParamSlider(CustomTheme.PARAM_TURBULENCE));
+        content.addView(themeParamSlider(CustomTheme.PARAM_SWIRL_SIZE));
+        content.addView(themeParamSlider(CustomTheme.PARAM_EVOLUTION));
+        content.addView(themeParamSlider(CustomTheme.PARAM_WARP));
+        content.addView(hint(R.string.flow_wind_hint));
+        content.addView(heading(R.string.flow_feel));
+        content.addView(themeParamSlider(CustomTheme.PARAM_MOMENTUM));
+        content.addView(themeParamSlider(CustomTheme.PARAM_BUOYANCY));
+        content.addView(hint(R.string.flow_feel_hint));
+        content.addView(heading(R.string.flow_particles));
+        content.addView(themeParamSlider(CustomTheme.PARAM_VARIATION));
+        content.addView(themeParamSlider(CustomTheme.PARAM_CLUMPING));
+        content.addView(hint(R.string.flow_particles_hint));
+    }
+
+    private TextView heading(int text) {
+        final TextView tv = new TextView(getContext());
+        tv.setText(text);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setAllCaps(true);
+        tv.setLetterSpacing(0.08f);
+        tv.setAlpha(0.8f);
+        tv.setPadding(0, dp(18), 0, dp(2));
+        return tv;
     }
 
     private void buildTrails() {

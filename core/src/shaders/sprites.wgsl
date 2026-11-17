@@ -20,7 +20,7 @@ struct VsOut {
 @vertex
 fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32) -> VsOut {
     let p = particles[iidx];
-    let base = max(g.line_half_width, 1.0);
+    let base = max(g.line_half_width, 1.0) * trait_width(p.seed, g.flow_a.x);
 
     // fade in on spawn, out on death (same as the trails)
     let life = smoothstep(0.0, 0.05, 1.0 - p.age) * smoothstep(0.0, 0.25, p.age);

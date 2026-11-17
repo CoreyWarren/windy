@@ -11,6 +11,7 @@ struct VsOut {
     @location(2) selector: f32,    // 0 = slow color, 1 = fast color
     @location(3) alpha: f32,       // life-based opacity
     @location(4) speed: f32,       // speed color effect weight
+    @location(5) hw: f32,          // this particle's half-width in px
 };
 
 // ink effect: wider, softer strokes
@@ -39,7 +40,8 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     let normal = vec2<f32>(-dir.y, dir.x);
 
     // pad by half-width+1px to give room for antialiasing
-    let half_w = half_width() + 1.0;
+    let hw = half_width() * trait_width(p.seed, g.flow_a.x);
+    let half_w = hw + 1.0;
     let half_l = len * 0.5;
 
     // fill the screen
@@ -65,8 +67,9 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
 
     // accumulate proportional to distance travelled
     // (instead of per-frame like the original one, which made things brighter on slower framerates)
-    let r = min(len / max(2.0 * half_width(), 1e-3), 1.0);
-    out.alpha = life * r;
+    let r = min(len / max(2.0 * hw, 1e-3), 1.0);
+    out.alpha = life * r * trait_opacity(p.seed, g.flow_a.x);
+    out.hw = hw;
 
     // snow effect: flakes are drawn as sprites instead of streaks
     if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x)) {
@@ -87,7 +90,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let dist = length(vec2<f32>(qx, in.local.y)); // distance from centerline
 
     // smooth edges with thin line like the original point sprite
-    let dn = dist / half_width();
+    let dn = dist / max(in.hw, 1e-3);
     var falloff = 1.0 - smoothstep(0.1, 1.0, dn * dn);
     if (has_fx(g.effects, FX_INK)) {
         let k = mix(8.0, 0.5, g.fx_ink_p.z); // softness

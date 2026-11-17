@@ -4,7 +4,7 @@
 use bytemuck::Zeroable;
 use wgpu::util::DeviceExt;
 
-use crate::config::{Config, Effects};
+use crate::config::{Config, Effects, Flow};
 use crate::shaders;
 use crate::shaders::simulate::{Globals, Particle};
 
@@ -51,6 +51,7 @@ pub struct Renderer {
     user_location: [f32; 2], // (lng, lat) degrees
     time_acc: f32,
     current_alpha_decay: f32,
+    flow_time: f32,
     redraw_counter: u32,
     redraw_target: u32,
 }
@@ -261,6 +262,7 @@ impl Renderer {
             user_location: [-97.0, 38.0],
             time_acc: 0.0,
             current_alpha_decay: config_alpha_decay,
+            flow_time: 0.0,
             redraw_counter: 0,
             redraw_target: REDRAW_FRAMES,
         };
@@ -449,6 +451,8 @@ impl Renderer {
     fn advance(&mut self, queue: &wgpu::Queue, dt: f32) {
         let dt = dt.clamp(0.0, 1.0 / 18.0); // match the original's max step
         self.time_acc = (self.time_acc + dt) % 64.0;
+        self.flow_time = (self.flow_time + dt * self.config.flow.evolution.max(0.0)) % Flow::PERIOD;
+        self.globals.flow_time = self.flow_time;
 
         // ease trail decay back down from `alpha_decay_changed` (fps-independent)
         let ease = 1.0 - (1.0f32 - 0.019).powf((dt * 60.0).max(0.0));
@@ -562,6 +566,11 @@ impl Renderer {
         self.globals.line_half_width = c.line_half_width;
         self.globals.particle_count = c.particle_count;
 
+        let f = &c.flow;
+        self.globals.flow_a = [f.variation, f.clumping, f.real_wind, f.turbulence];
+        self.globals.flow_b = [f.swirl_size, f.evolution, f.warp, f.momentum];
+        self.globals.flow_c = [f.buoyancy, 0.0, 0.0, 0.0];
+
         let fx = &c.effects;
         self.globals.effects = fx.enabled & ((1 << Effects::COUNT) - 1);
         [
@@ -655,6 +664,9 @@ fn init_particles(config: &Config) -> Vec<Particle> {
                 uv: [gx, gy],
                 age: rng.next_f32(),
                 speed: 0.0,
+                vel: [0.0, 0.0],
+                seed: rng.next_f32(),
+                _pad: 0.0,
             }
         })
         .collect()
