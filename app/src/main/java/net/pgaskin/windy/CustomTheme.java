@@ -507,6 +507,10 @@ public final class CustomTheme {
         }
     }
 
+    public static Snapshot snapshotOf(int[] colors, float[] params, int effects, int[] effectColors, float[] effectParams) {
+        return new Snapshot(colors, params, effects & EFFECT_MASK, effectColors, effectParams);
+    }
+
     public static Snapshot snapshot(Context context) {
         return new Snapshot(colors(context), params(context), effects(context), effectColors(context), effectParams(context));
     }

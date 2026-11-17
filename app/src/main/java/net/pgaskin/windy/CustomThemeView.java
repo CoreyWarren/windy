@@ -75,7 +75,7 @@ public class CustomThemeView extends LinearLayout {
         swatchList.addView(generate);
 
         final View advanced = inflater.inflate(R.layout.custom_advanced, swatchList, false);
-        advanced.setOnClickListener(v -> openEditor(EditorPanel.TAB_MOTION));
+        advanced.setOnClickListener(v -> openEditor(EditorPanel.TAB_LINES));
         swatchList.addView(advanced);
 
         final View effects = inflater.inflate(R.layout.custom_effects, swatchList, false);
@@ -314,7 +314,7 @@ public class CustomThemeView extends LinearLayout {
         dialog.show();
     }
 
-    private void showCodeDialog() {
+    void showCodeDialog() {
         final String code = CustomTheme.toRustCode(getContext());
 
         final int padding = Math.round(20 * getResources().getDisplayMetrics().density);

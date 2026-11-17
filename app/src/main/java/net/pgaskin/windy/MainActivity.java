@@ -17,6 +17,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.HorizontalScrollView;
@@ -32,14 +33,11 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SET_WALLPAPER = 1;
 
     private WindyWallpaperView preview;
-    private HorizontalScrollView themeScroll;
-    private LinearLayout themeList;
+    private LinearLayout bottomBar;
+    private EditorPanel editor;
     private int themeIndex;
 
-    private MenuItem customizeItem;
-    private CustomThemeView customTheme;
-    private ImageView customCardImage;
-    private final Runnable customThemeListener = this::refreshCustomCard;
+    private CustomThemeView customTheme; // hosts the editor's dialogs
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,46 +45,65 @@ public class MainActivity extends Activity {
         setContentView(R.layout.main_activity);
 
         preview = findViewById(R.id.preview);
-        themeScroll = findViewById(R.id.theme_scroll);
-        themeList = findViewById(R.id.theme_list);
+        bottomBar = findViewById(R.id.bottom_bar);
+        editor = findViewById(R.id.editor_panel);
         customTheme = findViewById(R.id.custom_theme);
 
         final Toolbar toolbar = findViewById(R.id.toolbar);
         toolbar.inflateMenu(R.menu.main);
-        customizeItem = toolbar.getMenu().findItem(R.id.action_customize);
+        toolbar.getMenu().findItem(R.id.action_customize).setVisible(false); // everything is customizable now
         toolbar.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.action_settings) {
                 startActivity(new Intent(this, SettingsActivity.class));
                 return true;
             }
-            if (item.getItemId() == R.id.action_customize) {
-                showCustomizeDialog();
-                return true;
-            }
             return false;
         });
 
-        findViewById(R.id.set_wallpaper).setOnClickListener(v -> setAsWallpaper());
-
+        buildBottomBar();
         applyInsets(toolbar);
         applySystemBarAppearance();
 
-        themeIndex = initialThemeIndex();
-        buildThemeCards();
-        selectTheme(themeIndex, false);
+        // the old fixed themes are now starting points in the presets, so the
+        // app always shows (and sets) the editable custom theme
+        themeIndex = Themes.CUSTOM;
+        Prefs.setThemeIndex(this, themeIndex);
+        preview.setThemeIndex(themeIndex);
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        CustomTheme.addListener(customThemeListener);
-        refreshCustomCard();
+    private void buildBottomBar() {
+        addBottomButton(R.drawable.ic_tune, R.string.bar_edit, false, v -> editor.open(customTheme, EditorPanel.TAB_LINES, -1));
+        addBottomButton(R.drawable.ic_effects, R.string.tab_effects, false, v -> editor.open(customTheme, EditorPanel.TAB_EFFECTS, -1));
+        addBottomButton(R.drawable.ic_presets, R.string.tab_presets, false, v -> editor.open(customTheme, EditorPanel.TAB_PRESETS, -1));
+        addBottomButton(R.drawable.ic_set_wallpaper, R.string.bar_set_wallpaper, true, v -> setAsWallpaper());
     }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        CustomTheme.removeListener(customThemeListener);
+    private void addBottomButton(int icon, int label, boolean bold, View.OnClickListener listener) {
+        final float density = getResources().getDisplayMetrics().density;
+        final LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setGravity(android.view.Gravity.CENTER);
+        item.setMinimumHeight(Math.round(56 * density));
+        item.setPadding(0, Math.round(6 * density), 0, Math.round(6 * density));
+        final android.util.TypedValue tv = new android.util.TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true);
+        item.setBackgroundResource(tv.resourceId);
+        item.setClickable(true);
+        item.setFocusable(true);
+        item.setContentDescription(getString(label));
+        item.setOnClickListener(listener);
+        final ImageView image = new ImageView(this);
+        image.setImageResource(icon);
+        item.addView(image, new LinearLayout.LayoutParams(Math.round(24 * density), Math.round(24 * density)));
+        final TextView text = new TextView(this);
+        text.setText(label);
+        text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13);
+        text.setPadding(0, Math.round(3 * density), 0, 0);
+        if (bold) {
+            text.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        }
+        item.addView(text);
+        bottomBar.addView(item, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
     }
 
     @Override
@@ -125,9 +142,8 @@ public class MainActivity extends Activity {
         findViewById(R.id.root).setOnApplyWindowInsetsListener((v, insets) -> {
             final Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
             toolbar.setPadding(bars.left, bars.top, bars.right, 0);
-            themeScroll.setPadding(bars.left, themeScroll.getPaddingTop(), bars.right, bars.bottom);
-            customTheme.setPadding(bars.left, customTheme.getPaddingTop(), bars.right, 0);
-            final EditorPanel editor = findViewById(R.id.editor_panel);
+            // keep the bar above the navigation buttons (3-button or gesture)
+            bottomBar.setPadding(bars.left, bottomBar.getPaddingTop(), bars.right, bars.bottom);
             editor.setPadding(bars.left, 0, bars.right, 0);
             editor.setNavInset(bars.bottom);
             return insets;
@@ -144,81 +160,6 @@ public class MainActivity extends Activity {
         controller.setSystemBarsAppearance(
                 night ? 0 : WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
                 WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
-    }
-
-    private int initialThemeIndex() {
-        final WallpaperInfo info = WallpaperManager.getInstance(this).getWallpaperInfo();
-        if (info != null && getPackageName().equals(info.getPackageName())) {
-            for (Themes.Entry theme : Themes.ALL) {
-                if (theme.service.equals(info.getServiceName())) {
-                    return theme.index;
-                }
-            }
-        }
-        return Prefs.themeIndex(this);
-    }
-
-    private void buildThemeCards() {
-        final LayoutInflater inflater = getLayoutInflater();
-        for (Themes.Entry theme : Themes.ALL) {
-            final View card = inflater.inflate(R.layout.theme_card, themeList, false);
-            final ImageView image = card.findViewById(R.id.theme_image);
-            image.setImageResource(theme.thumbnail);
-            image.setClipToOutline(true);
-            if (theme.index == Themes.CUSTOM) {
-                customCardImage = image; // shows the picked colors instead
-            }
-            ((TextView) card.findViewById(R.id.theme_name)).setText(theme.name);
-            card.setContentDescription(theme.label);
-            card.setOnClickListener(v -> selectTheme(theme.index, true));
-            themeList.addView(card);
-        }
-    }
-
-    private void selectTheme(int index, boolean animate) {
-        themeIndex = index;
-        Prefs.setThemeIndex(this, index);
-        preview.setThemeIndex(index);
-        for (int i = 0; i < themeList.getChildCount(); i++) {
-            themeList.getChildAt(i).setSelected(i == index);
-        }
-        final boolean custom = index == Themes.CUSTOM;
-        customTheme.setActive(custom, animate);
-        customizeItem.setVisible(!custom); // it copies the shown theme into the custom one
-        final View card = themeList.getChildAt(index);
-        themeScroll.post(() -> {
-            final int x = card.getLeft() - (themeScroll.getWidth() - card.getWidth()) / 2;
-            if (animate) {
-                themeScroll.smoothScrollTo(x, 0);
-            } else {
-                themeScroll.scrollTo(x, 0);
-            }
-        });
-    }
-
-    private void refreshCustomCard() {
-        if (customCardImage == null) {
-            return;
-        }
-        final int[] colors = CustomTheme.colors(this);
-        customCardImage.setImageDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
-                0xFF000000 | colors[CustomTheme.COLOR_BG1],
-                0xFF000000 | colors[CustomTheme.COLOR_BG2],
-        }));
-    }
-
-    private void showCustomizeDialog() {
-        final Themes.Entry theme = Themes.get(themeIndex);
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.customize)
-                .setMessage(getString(R.string.customize_message, theme.name))
-                .setPositiveButton(R.string.customize_continue, (dialog, which) -> {
-                    CustomTheme.setPresetName(this, "");
-                    CustomTheme.set(this, CustomTheme.themeColors(theme.index), CustomTheme.themeParams(theme.index), true);
-                    selectTheme(Themes.CUSTOM, true);
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
     }
 
     private void setAsWallpaper() {

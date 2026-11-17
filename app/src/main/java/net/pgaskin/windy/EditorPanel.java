@@ -43,15 +43,13 @@ import java.util.List;
  * Changes apply live and are saved as they're made.
  */
 public final class EditorPanel extends LinearLayout {
-    public static final int TAB_COLORS = 0;
-    public static final int TAB_MOTION = 1;
-    public static final int TAB_FLOW = 2;
-    public static final int TAB_TRAILS = 3;
-    public static final int TAB_EFFECTS = 4;
-    public static final int TAB_PRESETS = 5;
+    public static final int TAB_LINES = 0;
+    public static final int TAB_FLOW = 1;
+    public static final int TAB_EFFECTS = 2;
+    public static final int TAB_PRESETS = 3;
 
     private static final int[] TAB_LABELS = {
-            R.string.tab_colors, R.string.tab_motion, R.string.tab_flow, R.string.tab_trails, R.string.tab_effects, R.string.tab_presets,
+            R.string.tab_lines, R.string.tab_flow, R.string.tab_effects, R.string.tab_presets,
     };
 
     static final int[] EFFECT_ICONS = { // [CustomTheme.EFFECT_*]
@@ -59,9 +57,17 @@ public final class EditorPanel extends LinearLayout {
             R.drawable.ic_fx_comet, R.drawable.ic_fx_ink, R.drawable.ic_fx_neon,
     };
 
-    private static final int[] MOTION_PARAMS = {
-            CustomTheme.PARAM_WIND_SPEED, CustomTheme.PARAM_PARTICLE_COUNT, CustomTheme.PARAM_PARTICLE_LIFE,
-            CustomTheme.PARAM_LINE_HALF_WIDTH, CustomTheme.PARAM_PARTICLE_OPACITY,
+    // pale section colors, so it's easy to tell where you are while scrolling
+    private static final int HUE_BLUE = 0xFF5B9BF0;
+    private static final int HUE_GREEN = 0xFF4CC38A;
+    private static final int HUE_AMBER = 0xFFF0A63C;
+    private static final int HUE_PINK = 0xFFF06B9B;
+    private static final int HUE_TEAL = 0xFF3CC8C8;
+    private static final int HUE_VIOLET = 0xFF9B7BF0;
+    private static final int HUE_RED = 0xFFF0765B;
+
+    static final int[] EFFECT_HUES = { // [CustomTheme.EFFECT_*]
+            HUE_RED, HUE_AMBER, HUE_BLUE, HUE_VIOLET, HUE_TEAL, HUE_PINK,
     };
 
     private static final int MAX_UNDO = 20;
@@ -85,7 +91,9 @@ public final class EditorPanel extends LinearLayout {
 
     private CustomThemeView host;
     private CustomTheme.Snapshot before; // when the editor was opened
-    private int tab = TAB_MOTION;
+    private int tab = TAB_LINES;
+    private int hue; // the current section's color, for card(), or 0
+    private boolean colorsOpen; // the colors section on the lines tab
     private int effectPage = -1; // the effect being edited, if any
     private float heightFraction = DEFAULT_HEIGHT;
     private boolean open;
@@ -103,7 +111,7 @@ public final class EditorPanel extends LinearLayout {
         // see-through background, with the header and every control on a
         // nearly opaque card so the text stays readable
         final int base = getResources().getColor(R.color.nav_background, context.getTheme()) & 0xFFFFFF;
-        cardColor = 0xF2000000 | base;
+        cardColor = 0xFA000000 | base;
         final float r = dp(20);
         final GradientDrawable bg = new GradientDrawable();
         bg.setColor(0x8C000000 | base);
@@ -450,6 +458,7 @@ public final class EditorPanel extends LinearLayout {
     private void rebuild() {
         refreshers.clear();
         content.removeAllViews();
+        hue = 0;
         undoButton.setEnabled(!undo.isEmpty());
         for (int i = 0; i < tabViews.length; i++) {
             final boolean selected = i == tab;
@@ -458,19 +467,11 @@ public final class EditorPanel extends LinearLayout {
             tabViews[i].setSelected(selected);
         }
         switch (tab) {
-            case TAB_COLORS:
-                buildColors();
-                break;
-            case TAB_MOTION:
-                for (final int p : MOTION_PARAMS) {
-                    content.addView(themeParamSlider(p));
-                }
+            case TAB_LINES:
+                buildLines();
                 break;
             case TAB_FLOW:
                 buildFlow();
-                break;
-            case TAB_TRAILS:
-                buildTrails();
                 break;
             case TAB_EFFECTS:
                 if (effectPage >= 0) {
@@ -482,6 +483,35 @@ public final class EditorPanel extends LinearLayout {
             case TAB_PRESETS:
                 buildPresets();
                 break;
+        }
+    }
+
+    private void buildLines() {
+        content.addView(hint(R.string.flow_particles_hint));
+        content.addView(section(R.string.section_speed_trails, HUE_BLUE));
+        content.addView(themeParamSlider(CustomTheme.PARAM_WIND_SPEED));
+        content.addView(themeParamSlider(CustomTheme.PARAM_ALPHA_DECAY));
+        content.addView(toggle(getContext().getString(R.string.param_trail_follow_speed),
+                getContext().getString(R.string.param_trail_follow_speed_summary), 0,
+                () -> CustomTheme.param(getContext(), CustomTheme.PARAM_TRAIL_FOLLOW_SPEED) >= 0.5f,
+                on -> CustomTheme.setParam(getContext(), CustomTheme.PARAM_TRAIL_FOLLOW_SPEED, on ? 1f : 0f, true)));
+        content.addView(section(R.string.section_streaks, HUE_GREEN));
+        content.addView(themeParamSlider(CustomTheme.PARAM_LINE_HALF_WIDTH));
+        content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_OPACITY));
+        content.addView(section(R.string.section_particles, HUE_AMBER));
+        content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_COUNT));
+        content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_LIFE));
+
+        // colors, collapsed (they're rarely changed)
+        final TextView colorsHeading = section(colorsOpen ? R.string.section_colors_open : R.string.section_colors_closed, HUE_PINK);
+        colorsHeading.setMinHeight(dp(44));
+        colorsHeading.setOnClickListener(v -> {
+            colorsOpen = !colorsOpen;
+            rebuild();
+        });
+        content.addView(colorsHeading);
+        if (colorsOpen) {
+            buildColors();
         }
     }
 
@@ -530,40 +560,50 @@ public final class EditorPanel extends LinearLayout {
 
     private void buildFlow() {
         content.addView(hint(R.string.flow_particles_hint));
-        content.addView(heading(R.string.flow_wind));
+        content.addView(section(R.string.flow_wind, HUE_TEAL));
         content.addView(themeParamSlider(CustomTheme.PARAM_REAL_WIND));
         content.addView(themeParamSlider(CustomTheme.PARAM_TURBULENCE));
         content.addView(themeParamSlider(CustomTheme.PARAM_SWIRL_SIZE));
         content.addView(themeParamSlider(CustomTheme.PARAM_EVOLUTION));
         content.addView(themeParamSlider(CustomTheme.PARAM_WARP));
-        content.addView(heading(R.string.flow_feel));
+        content.addView(section(R.string.flow_feel, HUE_VIOLET));
         content.addView(themeParamSlider(CustomTheme.PARAM_MOMENTUM));
         content.addView(themeParamSlider(CustomTheme.PARAM_BUOYANCY));
-        content.addView(heading(R.string.flow_particles));
+        content.addView(section(R.string.flow_particles, HUE_AMBER));
         content.addView(themeParamSlider(CustomTheme.PARAM_VARIATION));
         content.addView(themeParamSlider(CustomTheme.PARAM_SIZE_VARIATION));
         content.addView(themeParamSlider(CustomTheme.PARAM_SIZE_STYLE));
         content.addView(themeParamSlider(CustomTheme.PARAM_CLUMPING));
     }
 
-    private TextView heading(int text) {
+    /** A section heading with a colored bar; the cards after it are tinted to match. */
+    private TextView section(int text, int sectionHue) {
+        hue = sectionHue;
         final TextView tv = new TextView(getContext());
         tv.setText(text);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        tv.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         tv.setAllCaps(true);
         tv.setLetterSpacing(0.08f);
-        tv.setAlpha(0.8f);
-        tv.setPadding(0, dp(18), 0, dp(2));
+        tv.setGravity(Gravity.CENTER_VERTICAL);
+        final GradientDrawable bar = new GradientDrawable();
+        bar.setColor(sectionHue);
+        bar.setCornerRadius(dp(3));
+        bar.setSize(dp(5), dp(18));
+        tv.setCompoundDrawablesRelativeWithIntrinsicBounds(bar, null, null, null);
+        tv.setCompoundDrawablePadding(dp(10));
+        tv.setPadding(dp(4), dp(14), dp(4), dp(6));
+        // a solid backing so it's readable between the cards
+        final GradientDrawable bg = new GradientDrawable();
+        bg.setColor(blend(cardColor, sectionHue, 0.10f));
+        bg.setCornerRadius(dp(10));
+        tv.setBackground(bg);
+        final LayoutParams lp = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(10);
+        lp.bottomMargin = dp(6);
+        tv.setLayoutParams(lp);
+        tv.setPadding(dp(10), dp(6), dp(14), dp(6));
         return tv;
-    }
-
-    private void buildTrails() {
-        content.addView(themeParamSlider(CustomTheme.PARAM_ALPHA_DECAY));
-        content.addView(toggle(getContext().getString(R.string.param_trail_follow_speed),
-                getContext().getString(R.string.param_trail_follow_speed_summary), 0,
-                () -> CustomTheme.param(getContext(), CustomTheme.PARAM_TRAIL_FOLLOW_SPEED) >= 0.5f,
-                on -> CustomTheme.setParam(getContext(), CustomTheme.PARAM_TRAIL_FOLLOW_SPEED, on ? 1f : 0f, true)));
     }
 
     private void buildEffects() {
@@ -574,6 +614,7 @@ public final class EditorPanel extends LinearLayout {
             final CustomTheme.EffectSpec spec = CustomTheme.EFFECTS[effect];
             final String label = getContext().getString(spec.label);
             final View row = inflater.inflate(R.layout.custom_effect, content, false);
+            hue = EFFECT_HUES[effect];
             card(row);
             row.setMinimumHeight(dp(60));
             final ImageView icon = row.findViewById(R.id.effect_icon);
@@ -612,6 +653,7 @@ public final class EditorPanel extends LinearLayout {
             content.addView(row);
         }
         refreshers.addAll(rows);
+        hue = 0;
         content.addView(hint(R.string.effects_hint));
     }
 
@@ -644,11 +686,13 @@ public final class EditorPanel extends LinearLayout {
         content.addView(header);
 
         // on/off
+        hue = EFFECT_HUES[effect];
         content.addView(toggle(getContext().getString(R.string.effect_enabled), getContext().getString(spec.summary), EFFECT_ICONS[effect],
                 () -> CustomTheme.effectEnabled(getContext(), effect),
                 on -> CustomTheme.setEffectEnabled(getContext(), effect, on, true)));
 
         // gradient stops, with -/+
+        content.addView(section(R.string.section_effect_colors, HUE_PINK));
         final LinearLayout colorsCard = new LinearLayout(getContext());
         colorsCard.setOrientation(VERTICAL);
         card(colorsCard);
@@ -724,11 +768,13 @@ public final class EditorPanel extends LinearLayout {
         });
         colorsCard.addView(hint(spec.gradient));
 
-        // sliders, then the cycle speed
+        content.addView(effectParamSlider(effect, CustomTheme.EFFECT_PARAM_CYCLE, CustomTheme.CYCLE_SPEC));
+
+        // the effect's own sliders
+        content.addView(section(R.string.section_effect_settings, EFFECT_HUES[effect]));
         for (int i = 0; i < spec.params.length; i++) {
             content.addView(effectParamSlider(effect, i, spec.params[i]));
         }
-        content.addView(effectParamSlider(effect, CustomTheme.EFFECT_PARAM_CYCLE, CustomTheme.CYCLE_SPEC));
 
         final Button reset = outlinedButton(R.string.reset_effect);
         reset.setOnClickListener(v -> {
@@ -741,6 +787,7 @@ public final class EditorPanel extends LinearLayout {
     }
 
     private void buildPresets() {
+        content.addView(section(R.string.section_your_presets, HUE_BLUE));
         final LinearLayout actions = row();
         final Button save = outlinedButton(R.string.save_as_preset);
         save.setOnClickListener(v -> host.showSavePresetDialog());
@@ -752,25 +799,25 @@ public final class EditorPanel extends LinearLayout {
         delete.setEnabled(!CustomTheme.presetName(getContext()).isEmpty());
         delete.setOnClickListener(v -> host.showDeletePresetDialog());
         actions.addView(delete, marginStart(dp(8)));
+        if (Prefs.developerMode(getContext())) {
+            final Button code = outlinedButton(R.string.code);
+            code.setOnClickListener(v -> host.showCodeDialog());
+            actions.addView(code, marginStart(dp(8)));
+        }
         final HorizontalScrollView actionsScroll = new HorizontalScrollView(getContext());
         actionsScroll.addView(actions);
-        content.addView(actionsScroll);
+        final LayoutParams actionsLp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        actionsLp.bottomMargin = dp(8);
+        content.addView(actionsScroll, actionsLp);
 
         final List<CustomTheme.Preset> presets = CustomTheme.presets(getContext());
         final String selected = CustomTheme.presetName(getContext());
         if (presets.isEmpty()) {
-            content.addView(hint(R.string.preset_none));
+            content.addView(hint(R.string.preset_none_yet));
         }
         for (final CustomTheme.Preset preset : presets) {
-            final TextView item = new TextView(getContext());
             final boolean current = preset.name.equals(selected);
-            item.setText(current ? "✓  " + preset.name : preset.name);
-            item.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-            item.setTypeface(current ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-            card(item);
-            item.setMinHeight(dp(48));
-            item.setGravity(Gravity.CENTER_VERTICAL);
-            item.setOnClickListener(v -> {
+            content.addView(listItem(current ? "\u2713  " + preset.name : preset.name, current, v -> {
                 pushUndo();
                 CustomTheme.loadPreset(getContext(), preset.name);
                 committed();
@@ -778,9 +825,36 @@ public final class EditorPanel extends LinearLayout {
                     host.refresh();
                 }
                 rebuild();
-            });
-            content.addView(item);
+            }));
         }
+
+        content.addView(section(R.string.section_starting_points, HUE_AMBER));
+        content.addView(hint(R.string.starting_points_hint));
+        for (int i = 0; i < StartingPoints.ALL.length; i++) {
+            final StartingPoints.Look look = StartingPoints.ALL[i];
+            content.addView(listItem((i + 1) + ".  " + look.name, false, v -> {
+                pushUndo();
+                CustomTheme.setPresetName(getContext(), "");
+                CustomTheme.restore(getContext(), look.build(), true);
+                committed();
+                if (host != null) {
+                    host.refresh();
+                }
+                rebuild();
+            }));
+        }
+    }
+
+    private TextView listItem(String text, boolean bold, View.OnClickListener listener) {
+        final TextView item = new TextView(getContext());
+        item.setText(text);
+        item.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        item.setTypeface(bold ? Typeface.DEFAULT_BOLD : Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        card(item);
+        item.setMinHeight(dp(48));
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setOnClickListener(listener);
+        return item;
     }
 
     // --- controls
@@ -824,7 +898,10 @@ public final class EditorPanel extends LinearLayout {
 
         final LinearLayout top = row();
         final TextView name = label(getContext().getString(spec.label));
-        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        name.setTextColor(themeColor(android.R.attr.textColorPrimary));
+        name.setLetterSpacing(0.02f);
         top.addView(name, new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         final TextView fine = new TextView(getContext());
         fine.setText(R.string.fine);
@@ -1144,11 +1221,24 @@ public final class EditorPanel extends LinearLayout {
 
     // --- small helpers
 
+    /** Mixes b into a (keeping a's alpha). */
+    private static int blend(int a, int b, float t) {
+        final int r = Math.round(((a >> 16) & 0xFF) * (1 - t) + ((b >> 16) & 0xFF) * t);
+        final int g = Math.round(((a >> 8) & 0xFF) * (1 - t) + ((b >> 8) & 0xFF) * t);
+        final int bl = Math.round((a & 0xFF) * (1 - t) + (b & 0xFF) * t);
+        return (a & 0xFF000000) | (r << 16) | (g << 8) | bl;
+    }
+
     /** Puts a control on a nearly opaque card (so it's readable over the wallpaper). */
     private void card(View v) {
         final GradientDrawable bg = new GradientDrawable();
-        bg.setColor(cardColor);
         bg.setCornerRadius(dp(14));
+        if (hue != 0) {
+            bg.setColor(blend(cardColor, hue, 0.14f)); // pale tint of the section color
+            bg.setStroke(Math.max(1, Math.round(dp(1) * 1.5f)), (hue & 0xFFFFFF) | 0x8C000000);
+        } else {
+            bg.setColor(cardColor);
+        }
         v.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{bg, selectable()}));
         v.setPadding(dp(12), dp(6), dp(12), dp(6));
         final LayoutParams lp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
