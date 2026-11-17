@@ -813,6 +813,19 @@ public final class CustomTheme {
         return imported.size();
     }
 
+    /** The first look in an exported code (see {@link #exportCode}), or the defaults if it's invalid. */
+    static Snapshot snapshotFromCode(String code) {
+        try {
+            final JSONObject obj = new JSONObject(code);
+            final JSONArray arr = obj.optJSONArray("presets");
+            final Preset preset = presetFromJson(arr != null ? arr.getJSONObject(0) : obj, "");
+            return new Snapshot(preset.colors, preset.params, preset.effects, preset.effectColors, preset.effectParams);
+        } catch (JSONException ex) {
+            Log.e(TAG, "invalid built-in look", ex);
+            return new Snapshot(themeColors(Themes.CUSTOM), themeParams(Themes.CUSTOM), 0, defaultEffectColors(), defaultEffectParams());
+        }
+    }
+
     private static Preset findPreset(List<Preset> presets, String name) {
         for (final Preset preset : presets) {
             if (preset.name.equals(name)) {

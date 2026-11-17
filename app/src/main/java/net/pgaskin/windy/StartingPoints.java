@@ -20,6 +20,7 @@ final class StartingPoints {
         private int effects;
         private final Integer[] effectColors = new Integer[EFFECT_COUNT * MAX_STOPS]; // null = default
         private final Float[] effectParams = new Float[EFFECT_COUNT * EFFECT_PARAM_COUNT]; // null = default
+        private String code; // an exported look instead of the above, or null
 
         private Look(String name) {
             this.name = name;
@@ -57,6 +58,9 @@ final class StartingPoints {
         }
 
         CustomTheme.Snapshot build() {
+            if (code != null) {
+                return snapshotFromCode(code);
+            }
             final float[] p = themeParams(Themes.CUSTOM);
             for (int i = 0; i < PARAM_COUNT; i++) {
                 if (params[i] != null) {
@@ -83,43 +87,41 @@ final class StartingPoints {
         return new Look(name);
     }
 
+    /** A look from an exported code (see {@link CustomTheme#exportCode}). */
+    private static Look fromCode(String name, String code) {
+        final Look look = new Look(name);
+        look.code = code;
+        return look;
+    }
+
     static final Look[] ALL = {
-            // 1: deep blue night, slow drifting snow over soft swirling streaks
-            look("Snow Globe")
-                    .colors(0x4D9FB8D8, 0x59E8F1FF, 0xFF0B1426, 0xFF1B2A44)
-                    .p(PARAM_PARTICLE_OPACITY, 0.55f).p(PARAM_ALPHA_DECAY, 0.97f).p(PARAM_WIND_SPEED, 0.12f)
-                    .p(PARAM_PARTICLE_COUNT, 3072).p(PARAM_VARIATION, 0.5f).p(PARAM_TURBULENCE, 0.6f)
-                    .p(PARAM_MOMENTUM, 0.6f).p(PARAM_BUOYANCY, 0.3f).p(PARAM_SIZE_VARIATION, 0.4f).p(PARAM_WARP, 0.3f)
-                    .fx(EFFECT_SNOW, 0xE6FFFFFF, 0xD9C8DCFF, 0xCCD8CCFF)
-                    .fp(EFFECT_SNOW, 0, 2.5f).fp(EFFECT_SNOW, 2, 0.25f).fp(EFFECT_SNOW, 3, 0.6f)
-                    .fp(EFFECT_SNOW, 4, 0.7f).fp(EFFECT_SNOW, 5, 0.5f),
-
-            // 2: wide soft ink strokes slowly shifting teal, pink, and gold
-            look("Ink in Water")
-                    .colors(0x40408C96, 0x4DA0E0E0, 0xFF061A1F, 0xFF0D2B33)
-                    .p(PARAM_PARTICLE_COUNT, 1536).p(PARAM_ALPHA_DECAY, 0.995f).p(PARAM_VARIATION, 0.6f)
-                    .p(PARAM_SIZE_VARIATION, 0.5f).p(PARAM_TURBULENCE, 0.5f).p(PARAM_WARP, 0.4f).p(PARAM_MOMENTUM, 0.5f)
-                    .fx(EFFECT_INK, 0xCC5CC8D2, 0xCCF08CB4, 0xCCF0C864)
-                    .fp(EFFECT_INK, 0, 3.5f).fp(EFFECT_INK, 1, 4.0f).fp(EFFECT_INK, 2, 0.7f).fp(EFFECT_INK, 3, 0.8f)
-                    .fp(EFFECT_INK, EFFECT_PARAM_CYCLE, 0.03f),
-
-            // 3: dim green grass blowing, with gold and lime fireflies floating up
+            // 1: dim green grass blowing, with gold and lime fireflies floating up
             look("Firefly Meadow")
                     .colors(0x4D2E5A35, 0x596FA35A, 0xFF050D07, 0xFF0E1F12)
                     .p(PARAM_PARTICLE_OPACITY, 0.4f).p(PARAM_REAL_WIND, 0.6f).p(PARAM_TURBULENCE, 0.4f)
                     .p(PARAM_MOMENTUM, 0.5f).p(PARAM_BUOYANCY, 0.5f).p(PARAM_VARIATION, 0.6f).p(PARAM_SIZE_VARIATION, 0.3f)
                     .fx(EFFECT_FIREFLY, 0xFFFFD45A, 0xFFB4F05A)
                     .fp(EFFECT_FIREFLY, 0, 0.3f).fp(EFFECT_FIREFLY, 1, 10f).fp(EFFECT_FIREFLY, 2, 0.25f).fp(EFFECT_FIREFLY, 3, 4f),
-
-            // 4: big lazy curtains of teal, green, violet, and pink glow
-            look("Aurora")
-                    .colors(0x591E8F7A, 0x668A5CF0, 0xFF02040A, 0xFF0A1030)
-                    .p(PARAM_ALPHA_DECAY, 0.99f).p(PARAM_TURBULENCE, 0.7f).p(PARAM_SWIRL_SIZE, 2.0f).p(PARAM_WARP, 0.5f)
-                    .p(PARAM_MOMENTUM, 0.4f).p(PARAM_SIZE_VARIATION, 0.3f).p(PARAM_VARIATION, 0.4f)
-                    .fx(EFFECT_NEON, 0xCC28E6B4, 0xCC5AF078, 0xCC9B6BF0, 0xCCF06BC8)
-                    .fp(EFFECT_NEON, 0, 1.6f).fp(EFFECT_NEON, 1, 2.2f).fp(EFFECT_NEON, 3, 0.4f)
-                    .fp(EFFECT_NEON, EFFECT_PARAM_CYCLE, 0.05f),
-
+            // 2: rising sparks swirling up from a dark fire
+            look("Ember Storm")
+                    .colors(0x598A2A0A, 0x73FF8A2A, 0xFF120502, 0xFF2A0A04)
+                    .p(PARAM_WIND_SPEED, 0.2f).p(PARAM_ALPHA_DECAY, 0.95f).p(PARAM_BUOYANCY, 0.8f).p(PARAM_MOMENTUM, 0.3f)
+                    .p(PARAM_TURBULENCE, 1.0f).p(PARAM_SWIRL_SIZE, 0.6f).p(PARAM_SIZE_VARIATION, 0.6f).p(PARAM_SIZE_STYLE, 1f)
+                    .fx(EFFECT_FIREFLY, 0xFFFF8C28, 0xFFFFDC50)
+                    .fp(EFFECT_FIREFLY, 0, 0.2f).fp(EFFECT_FIREFLY, 1, 6f).fp(EFFECT_FIREFLY, 2, 1.2f).fp(EFFECT_FIREFLY, 3, 6f),
+            // 3: thin grey and white silk threads, very mixed widths, no effects
+            look("Monochrome Silk")
+                    .colors(0x599A9A9A, 0x73FFFFFF, 0xFF0A0A0A, 0xFF151515)
+                    .p(PARAM_PARTICLE_OPACITY, 0.7f).p(PARAM_LINE_HALF_WIDTH, 0.6f).p(PARAM_ALPHA_DECAY, 0.985f)
+                    .p(PARAM_SIZE_VARIATION, 0.7f).p(PARAM_VARIATION, 0.7f).p(PARAM_MOMENTUM, 0.6f)
+                    .p(PARAM_TURBULENCE, 0.4f).p(PARAM_SWIRL_SIZE, 1.6f),
+            // 4: black, electric blue streaks with a cycling neon glow
+            look("Electric Night")
+                    .colors(0x662040FF, 0x8000F0FF, 0xFF000000, 0xFF06061A)
+                    .p(PARAM_WIND_SPEED, 0.25f).p(PARAM_TRAIL_FOLLOW_SPEED, 1f).p(PARAM_VARIATION, 0.4f)
+                    .fx(EFFECT_NEON, 0xCC00F0FF, 0xCCFF28DC)
+                    .fp(EFFECT_NEON, 1, 2.5f).fp(EFFECT_NEON, EFFECT_PARAM_CYCLE, 0.1f)
+                    .fx(EFFECT_SPEED, 0xE6FFFFFF, 0xFFC8F0FF),
             // 5: fast white-blue comets with long tails over deep violet
             look("Comet Rain")
                     .colors(0x404060C0, 0x4DA0B4FF, 0xFF050510, 0xFF120A24)
@@ -128,59 +130,7 @@ final class StartingPoints {
                     .fx(EFFECT_COMET, 0xF2FFFFFF, 0xE68CAAFF, 0xE6B48CFF)
                     .fp(EFFECT_COMET, 0, 3f).fp(EFFECT_COMET, 1, 0.8f).fp(EFFECT_COMET, 2, 2.5f).fp(EFFECT_COMET, 3, 0.4f),
 
-            // 6: warm dusk, gusts flare orange, red, and magenta
-            look("Sunset Gusts")
-                    .colors(0x66FFB26B, 0x73FF5E7A, 0xFF2A0E1E, 0xFF4A1E2A)
-                    .p(PARAM_PARTICLE_OPACITY, 0.6f).p(PARAM_TURBULENCE, 0.3f).p(PARAM_MOMENTUM, 0.3f).p(PARAM_VARIATION, 0.5f)
-                    .fx(EFFECT_SPEED, 0xD9FF9A3C, 0xF2FF3C3C, 0xF2E63CA0, 0xFFFFE6C8)
-                    .fp(EFFECT_SPEED, 0, 0.2f).fp(EFFECT_SPEED, 1, 0.4f),
-
-            // 7: thin grey and white silk threads, very mixed widths, no effects
-            look("Monochrome Silk")
-                    .colors(0x599A9A9A, 0x73FFFFFF, 0xFF0A0A0A, 0xFF151515)
-                    .p(PARAM_PARTICLE_OPACITY, 0.7f).p(PARAM_LINE_HALF_WIDTH, 0.6f).p(PARAM_ALPHA_DECAY, 0.985f)
-                    .p(PARAM_SIZE_VARIATION, 0.7f).p(PARAM_VARIATION, 0.7f).p(PARAM_MOMENTUM, 0.6f)
-                    .p(PARAM_TURBULENCE, 0.4f).p(PARAM_SWIRL_SIZE, 1.6f),
-
-            // 8: slow, heavy currents, dense in some places, with faint ink
-            look("Deep Ocean")
-                    .colors(0x4D0E5A7A, 0x665FD3F0, 0xFF001018, 0xFF00243A)
-                    .p(PARAM_REAL_WIND, 0.7f).p(PARAM_TURBULENCE, 0.8f).p(PARAM_SWIRL_SIZE, 2.5f).p(PARAM_MOMENTUM, 0.7f)
-                    .p(PARAM_BUOYANCY, 0.2f).p(PARAM_CLUMPING, 0.5f).p(PARAM_VARIATION, 0.4f)
-                    .fx(EFFECT_INK, 0x8C0A3C78, 0x993CC8F0)
-                    .fp(EFFECT_INK, 0, 2f).fp(EFFECT_INK, 1, 2f).fp(EFFECT_INK, 3, 0.5f),
-
-            // 9: rising sparks swirling up from a dark fire
-            look("Ember Storm")
-                    .colors(0x598A2A0A, 0x73FF8A2A, 0xFF120502, 0xFF2A0A04)
-                    .p(PARAM_WIND_SPEED, 0.2f).p(PARAM_ALPHA_DECAY, 0.95f).p(PARAM_BUOYANCY, 0.8f).p(PARAM_MOMENTUM, 0.3f)
-                    .p(PARAM_TURBULENCE, 1.0f).p(PARAM_SWIRL_SIZE, 0.6f).p(PARAM_SIZE_VARIATION, 0.6f).p(PARAM_SIZE_STYLE, 1f)
-                    .fx(EFFECT_FIREFLY, 0xFFFF8C28, 0xFFFFDC50)
-                    .fp(EFFECT_FIREFLY, 0, 0.2f).fp(EFFECT_FIREFLY, 1, 6f).fp(EFFECT_FIREFLY, 2, 1.2f).fp(EFFECT_FIREFLY, 3, 6f),
-
-            // 10: soft, wide lavender smoke with a gentle glow
-            look("Lavender Haze")
-                    .colors(0x598E7BC8, 0x66E6D9FF, 0xFF1A1428, 0xFF2E2440)
-                    .p(PARAM_PARTICLE_OPACITY, 0.45f).p(PARAM_LINE_HALF_WIDTH, 1.5f).p(PARAM_ALPHA_DECAY, 0.992f)
-                    .p(PARAM_TURBULENCE, 0.5f).p(PARAM_SWIRL_SIZE, 3f).p(PARAM_EVOLUTION, 0.15f).p(PARAM_MOMENTUM, 0.8f)
-                    .p(PARAM_CLUMPING, 0.6f)
-                    .fx(EFFECT_NEON, 0x99B48CFF, 0x99FFA0D2)
-                    .fp(EFFECT_NEON, 0, 2.5f).fp(EFFECT_NEON, 1, 1.0f).fp(EFFECT_NEON, 2, 0f),
-
-            // 11: black, electric blue streaks with a cycling neon glow
-            look("Electric Night")
-                    .colors(0x662040FF, 0x8000F0FF, 0xFF000000, 0xFF06061A)
-                    .p(PARAM_WIND_SPEED, 0.25f).p(PARAM_TRAIL_FOLLOW_SPEED, 1f).p(PARAM_VARIATION, 0.4f)
-                    .fx(EFFECT_NEON, 0xCC00F0FF, 0xCCFF28DC)
-                    .fp(EFFECT_NEON, 1, 2.5f).fp(EFFECT_NEON, EFFECT_PARAM_CYCLE, 0.1f)
-                    .fx(EFFECT_SPEED, 0xE6FFFFFF, 0xFFC8F0FF),
-
-            // 12: light sand background, dark ink-like threads, drifting gold dust
-            look("Dust & Light")
-                    .colors(0x666B5A48, 0x802A2018, 0xFFE9E2D6, 0xFFCFC4B2)
-                    .p(PARAM_PARTICLE_OPACITY, 0.5f).p(PARAM_SIZE_VARIATION, 0.8f).p(PARAM_SIZE_STYLE, 2f)
-                    .p(PARAM_TURBULENCE, 0.4f).p(PARAM_MOMENTUM, 0.5f).p(PARAM_CLUMPING, 0.4f)
-                    .fx(EFFECT_SNOW, 0xCCC89628, 0xCCE6B450)
-                    .fp(EFFECT_SNOW, 0, 1.5f).fp(EFFECT_SNOW, 2, 0f).fp(EFFECT_SNOW, 4, 0.25f).fp(EFFECT_SNOW, 5, 0.6f),
+            // 6: by Coco: sparse crystal shards with every effect on, sharp short trails
+            fromCode("Coco's Crystals", "{\"windyfx\":1,\"presets\":[{\"name\":\"Coco's Crystals\",\"colors\":\"86003c45,827cff52,ff000000,ff000000\",\"line_half_width\":1.7999999523162842,\"particle_opacity\":0.5400000214576721,\"alpha_decay\":0.6499999761581421,\"wind_speed\":0.17000000178813934,\"particle_count\":768,\"particle_life\":6,\"trail_follow_speed\":1,\"variation\":0.9900000095367432,\"clumping\":0.949999988079071,\"real_wind\":0.8899999856948853,\"turbulence\":0.550000011920929,\"swirl_size\":1.5583292245864868,\"evolution\":0.23000000417232513,\"warp\":0.6399999856948853,\"momentum\":0.10999999940395355,\"buoyancy\":0,\"size_variation\":0.8199999928474426,\"size_style\":1,\"effects\":63,\"effect_colors\":\"fe3e4400,0d003791,6affea00,23ffcd00,52ffe300,0b876e1a,ff000000,62a49f04,19000000,ff00567a,14140c48,78cfb62c,f2e61a99,ff4de6ff,52d9ccff,e6b366ff,49ffecb3,58007a15,ffffe6cc,ffff80cc,56b3ffff,e6ffd966,5a80ffbf,300f7354\",\"effect_params\":\"0.03,0.25,0.91,0.0,0.0,0.0,4.0,-0.375,1.0,15.0,0.03139628,10.0,0.0,0.0,2.0,0.203125,5.7999997,1.0,0.06,0.1,0.06,0.16,4.0,-0.3125,2.1,0.0,0.63728034,0.74,0.0,0.0,2.0,-0.21875,1.4,4.4416747,0.31,0.53,0.0,0.0,4.0,-0.421875,3.1499999,2.1,0.0,0.4,0.0,0.0,4.0,0.296875\"}]}"),
     };
 }
