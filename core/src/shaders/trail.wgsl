@@ -40,7 +40,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     let normal = vec2<f32>(-dir.y, dir.x);
 
     // pad by half-width+1px to give room for antialiasing
-    let hw = half_width() * trait_width(p.seed, g.flow_a.x);
+    let hw = half_width() * trait_width(p.seed, g.flow_c.y, g.flow_c.z);
     let half_w = hw + 1.0;
     let half_l = len * 0.5;
 
@@ -63,7 +63,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     out.selector = step(0.7, rand(p.uv));
 
     // fade in on spawn, out on death
-    let life = smoothstep(0.0, 0.05, 1.0 - p.age) * smoothstep(0.0, 0.25, p.age);
+    let life = streak_fade(p.age, p.life0);
 
     // accumulate proportional to distance travelled
     // (instead of per-frame like the original one, which made things brighter on slower framerates)

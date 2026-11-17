@@ -20,10 +20,10 @@ struct VsOut {
 @vertex
 fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32) -> VsOut {
     let p = particles[iidx];
-    let base = max(g.line_half_width, 1.0) * trait_width(p.seed, g.flow_a.x);
+    let base = max(g.line_half_width, 1.0) * trait_width(p.seed, g.flow_c.y, g.flow_c.z);
 
     // fade in on spawn, out on death (same as the trails)
-    let life = smoothstep(0.0, 0.05, 1.0 - p.age) * smoothstep(0.0, 0.25, p.age);
+    let life = streak_fade(p.age, p.life0);
 
     var radii = vec4<f32>(0.0);
     var weight = vec3<f32>(0.0);
@@ -38,7 +38,9 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
         let variation = 1.0 + g.fx_snow_p.y * (r - 0.5) * 1.6;
         radii.x = base * g.fx_snow_p.x * max(variation, 0.1);
         snow_color = fx_gradient(g.fx_snow_a, g.fx_snow_b, g.fx_snow_c, g.fx_snow_d, g.fx_snow_q, g.time_acc, rand(p.uv * 4.7 + vec2<f32>(0.53)));
-        weight.x = life * snow_color.a;
+        // flakes fade in and out gently (fade param), so they don't pop
+        let fade = mix(0.08, 0.5, clamp(g.fx_snow_q.y, 0.0, 1.0));
+        weight.x = life_fade(p.age, p.life0, fade * p.life0, fade) * snow_color.a;
     }
     if (has_fx(g.effects, FX_COMET)) {
         // p: (head size, white core, tail length, halo)

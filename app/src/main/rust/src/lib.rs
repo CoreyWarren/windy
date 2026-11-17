@@ -38,7 +38,9 @@ const PARAM_EVOLUTION: usize = 12;
 const PARAM_WARP: usize = 13;
 const PARAM_MOMENTUM: usize = 14;
 const PARAM_BUOYANCY: usize = 15;
-const PARAM_COUNT: usize = 16;
+const PARAM_SIZE_VARIATION: usize = 16;
+const PARAM_SIZE_STYLE: usize = 17;
+const PARAM_COUNT: usize = 18;
 
 const EFFECT_PARAM_COUNT: usize = Effects::PARAM_COUNT; // per effect
 
@@ -343,6 +345,8 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetCust
         config.flow.warp = params_buf[PARAM_WARP].clamp(0.0, 2.0);
         config.flow.momentum = params_buf[PARAM_MOMENTUM].clamp(0.0, 1.0);
         config.flow.buoyancy = params_buf[PARAM_BUOYANCY].clamp(0.0, 1.0);
+        config.flow.size_variation = params_buf[PARAM_SIZE_VARIATION].clamp(0.0, 1.0);
+        config.flow.size_style = params_buf[PARAM_SIZE_STYLE].round().clamp(0.0, 2.0);
         st.renderer.set_config(&st.device, config); // note: the colors are instant, but the params ease
         Ok::<(), jni::errors::Error>(()) // leave unchanged on error
     })
@@ -600,6 +604,8 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeThemePa
         PARAM_WARP => config.flow.warp,
         PARAM_MOMENTUM => config.flow.momentum,
         PARAM_BUOYANCY => config.flow.buoyancy,
+        PARAM_SIZE_VARIATION => config.flow.size_variation,
+        PARAM_SIZE_STYLE => config.flow.size_style,
         PARAM_TRAIL_FOLLOW_SPEED => {
             if config.trail_follow_speed {
                 1.0

@@ -56,6 +56,8 @@ public final class CustomTheme {
         public final int decimals;
         public final boolean logScale; // trail decay only really matters near 1.0
         public final boolean expScale; // multipliers, so 1/2x and 2x are equally far from 1x
+        public int hint; // human-readable description, or 0
+        public int[] labels; // human-readable names for each whole value from 0, or null
 
         private ParamSpec(String key, int label, float min, float max, int steps, int decimals, boolean logScale) {
             this(key, label, min, max, steps, decimals, logScale, false);
@@ -70,6 +72,25 @@ public final class CustomTheme {
             this.decimals = decimals;
             this.logScale = logScale;
             this.expScale = expScale;
+        }
+
+        ParamSpec hint(int hint) {
+            this.hint = hint;
+            return this;
+        }
+
+        ParamSpec labels(int... labels) {
+            this.labels = labels;
+            return this;
+        }
+
+        /** The value text, using the labels if there are any. */
+        public String text(Context context, float value) {
+            if (labels != null) {
+                final int i = Math.max(0, Math.min(labels.length - 1, Math.round(value)));
+                return context.getString(labels[i]);
+            }
+            return text(value);
         }
 
         /** The value at a slider position. */
@@ -124,24 +145,29 @@ public final class CustomTheme {
     public static final int PARAM_WARP = 13;
     public static final int PARAM_MOMENTUM = 14;
     public static final int PARAM_BUOYANCY = 15;
+    public static final int PARAM_SIZE_VARIATION = 16;
+    public static final int PARAM_SIZE_STYLE = 17; // 0 even, 1 rare giants, 2 two sizes
 
     public static final ParamSpec[] PARAMS = { // [PARAM_*]
-            new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false),
-            new ParamSpec("particle_opacity", R.string.param_opacity, 0.0f, 2.0f, 100, 2, false),
-            new ParamSpec("alpha_decay", R.string.param_trail_decay, 0.80f, 0.9999f, 600, 4, true),
-            new ParamSpec("wind_speed", R.string.param_wind_speed, 0.0f, 2.0f, 200, 3, false),
-            new ParamSpec("particle_count", R.string.param_particle_count, 256, 16384, 63, 0, false),
-            new ParamSpec("particle_life", R.string.param_particle_life, 1.0f, 30.0f, 58, 1, false),
+            new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false).hint(R.string.hint_line_width),
+            new ParamSpec("particle_opacity", R.string.param_opacity, 0.0f, 2.0f, 100, 2, false).hint(R.string.hint_opacity),
+            new ParamSpec("alpha_decay", R.string.param_trail_decay, 0.65f, 0.9999f, 700, 4, true).hint(R.string.hint_trail_decay),
+            new ParamSpec("wind_speed", R.string.param_wind_speed, 0.0f, 2.0f, 200, 3, false).hint(R.string.hint_wind_speed),
+            new ParamSpec("particle_count", R.string.param_particle_count, 256, 16384, 63, 0, false).hint(R.string.hint_particle_count),
+            new ParamSpec("particle_life", R.string.param_particle_life, 1.0f, 30.0f, 58, 1, false).hint(R.string.hint_particle_life),
             new ParamSpec("trail_follow_speed", R.string.param_trail_follow_speed, 0.0f, 1.0f, 1, 0, false), // on/off
-            new ParamSpec("variation", R.string.param_variation, 0.0f, 1.0f, 100, 2, false),
-            new ParamSpec("clumping", R.string.param_clumping, 0.0f, 1.0f, 100, 2, false),
-            new ParamSpec("real_wind", R.string.param_real_wind, 0.0f, 1.0f, 100, 2, false),
-            new ParamSpec("turbulence", R.string.param_turbulence, 0.0f, 2.0f, 200, 2, false),
-            new ParamSpec("swirl_size", R.string.param_swirl_size, 0.25f, 4.0f, 100, 2, false, true),
-            new ParamSpec("evolution", R.string.param_evolution, 0.0f, 2.0f, 200, 2, false),
-            new ParamSpec("warp", R.string.param_warp, 0.0f, 1.0f, 100, 2, false),
-            new ParamSpec("momentum", R.string.param_momentum, 0.0f, 1.0f, 100, 2, false),
-            new ParamSpec("buoyancy", R.string.param_buoyancy, 0.0f, 1.0f, 100, 2, false),
+            new ParamSpec("variation", R.string.param_variation, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_variation),
+            new ParamSpec("clumping", R.string.param_clumping, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_clumping),
+            new ParamSpec("real_wind", R.string.param_real_wind, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_real_wind),
+            new ParamSpec("turbulence", R.string.param_turbulence, 0.0f, 2.0f, 200, 2, false).hint(R.string.hint_turbulence),
+            new ParamSpec("swirl_size", R.string.param_swirl_size, 0.25f, 4.0f, 100, 2, false, true).hint(R.string.hint_swirl_size),
+            new ParamSpec("evolution", R.string.param_evolution, 0.0f, 2.0f, 200, 2, false).hint(R.string.hint_evolution),
+            new ParamSpec("warp", R.string.param_warp, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_warp),
+            new ParamSpec("momentum", R.string.param_momentum, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_momentum),
+            new ParamSpec("buoyancy", R.string.param_buoyancy, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_buoyancy),
+            new ParamSpec("size_variation", R.string.param_size_variation, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_size_variation),
+            new ParamSpec("size_style", R.string.param_size_style, 0.0f, 2.0f, 2, 0, false).hint(R.string.hint_size_style)
+                    .labels(R.string.size_style_even, R.string.size_style_giants, R.string.size_style_two),
     };
 
     public static final int PARAM_COUNT = PARAMS.length;
@@ -177,7 +203,7 @@ public final class CustomTheme {
     public static final int MAX_STOPS = 4; // must match native
 
     /** The gradient cycle speed (negative reverses, whole cycles per 64s). */
-    public static final ParamSpec CYCLE_SPEC = lin(R.string.fx_cycle, -1.0f, 1.0f, 128, 2);
+    public static final ParamSpec CYCLE_SPEC = lin(R.string.fx_cycle, -1.0f, 1.0f, 128, 2).hint(R.string.hint_fx_cycle);
     private static final int EFFECT_PARAM_COUNT_V1 = 4; // in older saves
 
     // do not change the order (it must match native and saved prefs)
@@ -190,35 +216,36 @@ public final class CustomTheme {
 
     public static final EffectSpec[] EFFECTS = { // [EFFECT_*]
             new EffectSpec("speed", R.string.effect_speed, R.string.effect_speed_summary, R.string.gradient_gusts,
-                    lin(R.string.fx_threshold, 0.0f, 1.0f, 100, 2),
-                    lin(R.string.fx_range, 0.01f, 1.0f, 99, 2),
-                    lin(R.string.fx_opacity, 0.0f, 1.0f, 100, 2)),
+                    lin(R.string.fx_threshold, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_threshold),
+                    lin(R.string.fx_range, 0.01f, 1.0f, 99, 2).hint(R.string.hint_fx_range),
+                    lin(R.string.fx_opacity, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_opacity)),
             new EffectSpec("firefly", R.string.effect_firefly, R.string.effect_firefly_summary, R.string.gradient_random,
-                    lin(R.string.fx_amount, 0.0f, 1.0f, 100, 2),
-                    lin(R.string.fx_size, 2.0f, 30.0f, 56, 1),
-                    exp(R.string.fx_pulse_rate, 0.02f, 3.0f, 100, 2),
-                    lin(R.string.fx_pulse_sharpness, 0.5f, 10.0f, 95, 1)),
+                    lin(R.string.fx_amount, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_firefly_amount),
+                    lin(R.string.fx_size, 2.0f, 30.0f, 56, 1).hint(R.string.hint_fx_firefly_size),
+                    exp(R.string.fx_pulse_rate, 0.02f, 3.0f, 100, 2).hint(R.string.hint_fx_pulse_rate),
+                    lin(R.string.fx_pulse_sharpness, 0.5f, 10.0f, 95, 1).hint(R.string.hint_fx_pulse_sharpness)),
             new EffectSpec("snow", R.string.effect_snow, R.string.effect_snow_summary, R.string.gradient_random,
-                    lin(R.string.fx_size, 0.5f, 8.0f, 75, 1),
-                    lin(R.string.fx_size_variation, 0.0f, 1.0f, 100, 2),
-                    lin(R.string.fx_fall, 0.0f, 1.0f, 100, 2),
-                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2),
-                    lin(R.string.fx_snow_amount, 0.0f, 1.0f, 100, 2)),
+                    lin(R.string.fx_size, 0.5f, 8.0f, 75, 1).hint(R.string.hint_fx_snow_size),
+                    lin(R.string.fx_size_variation, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_snow_variation),
+                    lin(R.string.fx_fall, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_fall),
+                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_snow_softness),
+                    lin(R.string.fx_snow_amount, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_snow_amount),
+                    lin(R.string.fx_fade, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_fade)),
             new EffectSpec("comet", R.string.effect_comet, R.string.effect_comet_summary, R.string.gradient_comet,
-                    lin(R.string.fx_head_size, 1.0f, 10.0f, 90, 1),
-                    lin(R.string.fx_white_core, 0.0f, 1.0f, 100, 2),
-                    exp(R.string.fx_tail_length, 0.25f, 8.0f, 100, 2),
-                    lin(R.string.fx_halo, 0.0f, 1.0f, 100, 2)),
+                    lin(R.string.fx_head_size, 1.0f, 10.0f, 90, 1).hint(R.string.hint_fx_head_size),
+                    lin(R.string.fx_white_core, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_white_core),
+                    exp(R.string.fx_tail_length, 0.25f, 8.0f, 100, 2).hint(R.string.hint_fx_tail_length),
+                    lin(R.string.fx_halo, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_halo)),
             new EffectSpec("ink", R.string.effect_ink, R.string.effect_ink_summary, R.string.gradient_calm_fast,
-                    lin(R.string.fx_width, 1.0f, 8.0f, 70, 1),
-                    exp(R.string.fx_linger, 0.25f, 10.0f, 100, 2),
-                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2),
-                    lin(R.string.fx_density, 0.0f, 1.0f, 100, 2)),
+                    lin(R.string.fx_width, 1.0f, 8.0f, 70, 1).hint(R.string.hint_fx_ink_width),
+                    exp(R.string.fx_linger, 0.25f, 10.0f, 100, 2).hint(R.string.hint_fx_linger),
+                    lin(R.string.fx_softness, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_ink_softness),
+                    lin(R.string.fx_density, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_density)),
             new EffectSpec("neon", R.string.effect_neon, R.string.effect_neon_summary, R.string.gradient_calm_fast,
-                    lin(R.string.fx_radius, 0.5f, 4.0f, 70, 2),
-                    lin(R.string.fx_brightness, 0.0f, 5.0f, 100, 2),
-                    lin(R.string.fx_quality, 0.0f, 1.0f, 1, 0),
-                    lin(R.string.fx_pulse, 0.0f, 1.0f, 100, 2)),
+                    lin(R.string.fx_radius, 0.5f, 4.0f, 70, 2).hint(R.string.hint_fx_radius),
+                    lin(R.string.fx_brightness, 0.0f, 5.0f, 100, 2).hint(R.string.hint_fx_brightness),
+                    lin(R.string.fx_quality, 0.0f, 1.0f, 1, 0).hint(R.string.hint_fx_quality).labels(R.string.quality_fast, R.string.quality_smooth),
+                    lin(R.string.fx_pulse, 0.0f, 1.0f, 100, 2).hint(R.string.hint_fx_neon_pulse)),
     };
 
     public static final int EFFECT_COUNT = EFFECTS.length;

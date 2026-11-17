@@ -49,7 +49,7 @@ struct Globals {
     fx_neon_q: vec4<f32>,
     flow_a: vec4<f32>,      // (variation, clumping, real wind, turbulence)
     flow_b: vec4<f32>,      // (swirl size, flow change speed, warp, momentum)
-    flow_c: vec4<f32>,      // (float/sink, -, -, -)
+    flow_c: vec4<f32>,      // (float/sink, size variation, size style, -)
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)
@@ -76,7 +76,7 @@ struct Particle {
     speed: f32,       // normalized wind speed at pos [0,1]
     vel: vec2<f32>,   // current velocity (for momentum)
     seed: f32,        // random per spawn, for the particle's traits
-    _pad: f32,
+    life0: f32,       // age when spawned (for fading in)
 };
 
 // effect bits (must match Effects in config.rs)
@@ -129,8 +129,28 @@ fn trait_rand(seed: f32, k: f32) -> f32 {
     return rand(vec2<f32>(fract(seed * 13.7 + k * 0.618) * 31.0, k * 3.1 + 0.5));
 }
 
-fn trait_width(seed: f32, variation: f32) -> f32 {
-    return exp2(variation * (trait_rand(seed, 1.0) - 0.5) * 2.4); // ~0.4x to 2.3x
+// style 0: even (~0.18x to 5.7x), 1: rare giants (mostly ~0.5x, a few up to
+// ~9x), 2: two sizes (80% ~0.5x, 20% ~4x)
+fn trait_width(seed: f32, variation: f32, style: f32) -> f32 {
+    let r = trait_rand(seed, 1.0);
+    if (style > 1.5) {
+        return select(exp2(variation * 2.0), exp2(-variation), r < 0.8);
+    }
+    if (style > 0.5) {
+        return exp2(variation * (pow(r, 4.0) * 4.0 - 1.0));
+    }
+    return exp2(variation * (r - 0.5) * 5.0);
+}
+
+// fade in after spawning and out before dying (spans in age units, the life
+// starts at life0 and counts down to 0)
+fn life_fade(age: f32, life0: f32, fade_in: f32, fade_out: f32) -> f32 {
+    return smoothstep(0.0, max(fade_in, 0.001), life0 - age) * smoothstep(0.0, max(fade_out, 0.001), age);
+}
+
+// the usual fade for streaks and sprites
+fn streak_fade(age: f32, life0: f32) -> f32 {
+    return life_fade(age, life0, life0 * 0.1, 0.25);
 }
 
 fn trait_opacity(seed: f32, variation: f32) -> f32 {

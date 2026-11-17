@@ -71,6 +71,10 @@ pub struct Flow {
     pub momentum: f32,
     /// Per-particle drift up or down [0,1].
     pub buoyancy: f32,
+    /// Per-particle width differences [0,1].
+    pub size_variation: f32,
+    /// How widths are picked: 0 even, 1 rare giants, 2 two sizes.
+    pub size_style: f32,
 }
 
 impl Flow {
@@ -84,6 +88,8 @@ impl Flow {
         warp: 0.0,
         momentum: 0.0,
         buoyancy: 0.0,
+        size_variation: 0.0,
+        size_style: 0.0,
     };
 
     /// Flow noise time wraps at this (must match FLOW_PERIOD in the shaders).
@@ -122,7 +128,7 @@ impl Effects {
     pub const FIREFLY: usize = 1;
     /// Some particles are drifting dots instead of streaks, each a random color
     /// in the gradient. Params: (size, size variation, fall speed, softness,
-    /// amount).
+    /// amount, fade in/out).
     pub const SNOW: usize = 2;
     /// A bright head on each streak in the start color, with a halo in the end
     /// color. Params: (head size, white core, tail length, halo).
@@ -186,7 +192,7 @@ impl Effects {
         params: [
             [0.15, 0.45, 0.75, 0.0, 0.0, 0.0, 2.0, 0.0], // speed
             [0.35, 8.0, 0.2, 3.0, 0.0, 0.0, 2.0, 0.0],   // firefly
-            [2.5, 0.6, 0.0, 0.45, 0.3, 0.0, 2.0, 0.0],   // snow
+            [2.5, 0.6, 0.0, 0.45, 0.3, 0.3, 2.0, 0.0],   // snow
             [3.0, 0.6, 1.0, 0.3, 0.0, 0.0, 2.0, 0.0],    // comet
             [2.5, 3.3, 0.6, 0.85, 0.0, 0.0, 2.0, 0.0],   // ink
             [1.0, 1.6, 1.0, 0.0, 0.0, 0.0, 2.0, 0.0],    // neon

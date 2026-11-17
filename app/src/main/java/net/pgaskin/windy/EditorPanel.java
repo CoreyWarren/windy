@@ -73,6 +73,7 @@ public final class EditorPanel extends LinearLayout {
     private static final float FINE_FACTOR = 10f; // fine slider movement is this much slower
 
     private final float density;
+    private final int cardColor;
     private final int touchSlop;
     private final TextView[] tabViews = new TextView[TAB_LABELS.length];
     private final LinearLayout content;
@@ -99,12 +100,22 @@ public final class EditorPanel extends LinearLayout {
         setClickable(true); // don't let touches through to the theme list
         setFocusable(true);
 
-        // see-through background, opaque controls
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setColor(getResources().getColor(R.color.nav_background, context.getTheme()));
+        // see-through background, with the header and every control on a
+        // nearly opaque card so the text stays readable
+        final int base = getResources().getColor(R.color.nav_background, context.getTheme()) & 0xFFFFFF;
+        cardColor = 0xF2000000 | base;
         final float r = dp(20);
+        final GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0x8C000000 | base);
         bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
         setBackground(bg);
+        final LinearLayout header = new LinearLayout(context);
+        header.setOrientation(VERTICAL);
+        final GradientDrawable headerBg = new GradientDrawable();
+        headerBg.setColor(cardColor);
+        headerBg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        header.setBackground(headerBg);
+        addView(header);
 
         // drag handle (drag to resize, hold to peek)
         final FrameLayout handle = new FrameLayout(context);
@@ -115,7 +126,7 @@ public final class EditorPanel extends LinearLayout {
         pill.setBackground(pillBg);
         handle.addView(pill, new FrameLayout.LayoutParams(dp(44), dp(5), Gravity.CENTER));
         handle.setContentDescription(context.getString(R.string.editor_handle));
-        addView(handle, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(28)));
+        header.addView(handle, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(24)));
         setupHandle(handle);
 
         // toolbar
@@ -138,7 +149,7 @@ public final class EditorPanel extends LinearLayout {
         done.setTypeface(Typeface.DEFAULT_BOLD);
         done.setOnClickListener(v -> close());
         toolbar.addView(done);
-        addView(toolbar);
+        header.addView(toolbar);
 
         // tabs
         final LinearLayout tabRow = row();
@@ -149,24 +160,24 @@ public final class EditorPanel extends LinearLayout {
             tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
             tv.setGravity(Gravity.CENTER);
             tv.setMaxLines(1);
-            tv.setPadding(dp(2), dp(12), dp(2), dp(12));
+            tv.setPadding(dp(2), dp(10), dp(2), dp(10));
             tv.setBackground(selectable());
             tv.setOnClickListener(v -> showTab(t));
             tabViews[t] = tv;
             tabRow.addView(tv, new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         }
-        addView(tabRow);
+        header.addView(tabRow);
         final View divider = new View(context);
         divider.setBackgroundColor(themeColor(android.R.attr.textColorSecondary));
         divider.setAlpha(0.3f);
-        addView(divider, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2)));
+        header.addView(divider, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2)));
 
         // page
         scroll = new ScrollView(context);
         scroll.setClipToPadding(false);
         content = new LinearLayout(context);
         content.setOrientation(VERTICAL);
-        content.setPadding(dp(16), dp(8), dp(16), dp(16));
+        content.setPadding(dp(10), dp(8), dp(10), dp(16));
         scroll.addView(content);
         addView(scroll, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
     }
@@ -276,7 +287,7 @@ public final class EditorPanel extends LinearLayout {
 
     /** The navigation bar height, so the bottom of the page isn't under it. */
     public void setNavInset(int inset) {
-        content.setPadding(dp(16), dp(8), dp(16), dp(16) + inset);
+        content.setPadding(dp(10), dp(8), dp(10), dp(16) + inset);
     }
 
     // --- size and peeking
@@ -365,23 +376,42 @@ public final class EditorPanel extends LinearLayout {
         Runnable start();
     }
 
-    /** While held, shows the comparison, without saving anything. */
+    /**
+     * While held (after a moment, so scrolling past it doesn't trigger it),
+     * shows the comparison, without saving anything.
+     */
     private void holdToCompare(View button, Compare compare) {
         final Runnable[] restore = new Runnable[1];
+        final float[] down = new float[2];
+        final Runnable start = () -> {
+            button.getParent().requestDisallowInterceptTouchEvent(true);
+            button.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            restore[0] = compare.start();
+        };
+        final Runnable stop = () -> {
+            button.removeCallbacks(start);
+            button.setPressed(false);
+            if (restore[0] != null) {
+                restore[0].run();
+                restore[0] = null;
+            }
+        };
         button.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
+                    down[0] = e.getX();
+                    down[1] = e.getY();
                     v.setPressed(true);
-                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-                    restore[0] = compare.start();
+                    v.postDelayed(start, 120);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (restore[0] == null && (Math.abs(e.getX() - down[0]) > touchSlop || Math.abs(e.getY() - down[1]) > touchSlop)) {
+                        stop.run();
+                    }
                     return true;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    v.setPressed(false);
-                    if (restore[0] != null) {
-                        restore[0].run();
-                        restore[0] = null;
-                    }
+                    stop.run();
                     return true;
             }
             return true;
@@ -479,6 +509,7 @@ public final class EditorPanel extends LinearLayout {
         }
         final HorizontalScrollView gridScroll = new HorizontalScrollView(getContext());
         gridScroll.addView(grid);
+        card(gridScroll);
         content.addView(gridScroll);
         final Runnable refresh = () -> {
             final int[] colors = CustomTheme.colors(getContext());
@@ -498,21 +529,21 @@ public final class EditorPanel extends LinearLayout {
     }
 
     private void buildFlow() {
+        content.addView(hint(R.string.flow_particles_hint));
         content.addView(heading(R.string.flow_wind));
         content.addView(themeParamSlider(CustomTheme.PARAM_REAL_WIND));
         content.addView(themeParamSlider(CustomTheme.PARAM_TURBULENCE));
         content.addView(themeParamSlider(CustomTheme.PARAM_SWIRL_SIZE));
         content.addView(themeParamSlider(CustomTheme.PARAM_EVOLUTION));
         content.addView(themeParamSlider(CustomTheme.PARAM_WARP));
-        content.addView(hint(R.string.flow_wind_hint));
         content.addView(heading(R.string.flow_feel));
         content.addView(themeParamSlider(CustomTheme.PARAM_MOMENTUM));
         content.addView(themeParamSlider(CustomTheme.PARAM_BUOYANCY));
-        content.addView(hint(R.string.flow_feel_hint));
         content.addView(heading(R.string.flow_particles));
         content.addView(themeParamSlider(CustomTheme.PARAM_VARIATION));
+        content.addView(themeParamSlider(CustomTheme.PARAM_SIZE_VARIATION));
+        content.addView(themeParamSlider(CustomTheme.PARAM_SIZE_STYLE));
         content.addView(themeParamSlider(CustomTheme.PARAM_CLUMPING));
-        content.addView(hint(R.string.flow_particles_hint));
     }
 
     private TextView heading(int text) {
@@ -529,7 +560,6 @@ public final class EditorPanel extends LinearLayout {
 
     private void buildTrails() {
         content.addView(themeParamSlider(CustomTheme.PARAM_ALPHA_DECAY));
-        content.addView(hint(R.string.trail_decay_hint));
         content.addView(toggle(getContext().getString(R.string.param_trail_follow_speed),
                 getContext().getString(R.string.param_trail_follow_speed_summary), 0,
                 () -> CustomTheme.param(getContext(), CustomTheme.PARAM_TRAIL_FOLLOW_SPEED) >= 0.5f,
@@ -544,12 +574,13 @@ public final class EditorPanel extends LinearLayout {
             final CustomTheme.EffectSpec spec = CustomTheme.EFFECTS[effect];
             final String label = getContext().getString(spec.label);
             final View row = inflater.inflate(R.layout.custom_effect, content, false);
-            row.setMinimumHeight(dp(72));
+            card(row);
+            row.setMinimumHeight(dp(60));
             final ImageView icon = row.findViewById(R.id.effect_icon);
             icon.setImageResource(EFFECT_ICONS[effect]);
             final TextView name = row.findViewById(R.id.effect_label);
             name.setText(label);
-            name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+            name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
             final TextView summary = row.findViewById(R.id.effect_summary);
             summary.setText(spec.summary);
             summary.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
@@ -618,6 +649,10 @@ public final class EditorPanel extends LinearLayout {
                 on -> CustomTheme.setEffectEnabled(getContext(), effect, on, true)));
 
         // gradient stops, with -/+
+        final LinearLayout colorsCard = new LinearLayout(getContext());
+        colorsCard.setOrientation(VERTICAL);
+        card(colorsCard);
+        content.addView(colorsCard);
         final LinearLayout stopsRow = row();
         final TextView stopsLabel = label("");
         stopsRow.addView(stopsLabel, new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
@@ -625,12 +660,12 @@ public final class EditorPanel extends LinearLayout {
         final Button more = nudgeButton("+", R.string.effect_more_colors);
         stopsRow.addView(fewer);
         stopsRow.addView(more);
-        content.addView(stopsRow, spaced(ViewGroup.LayoutParams.MATCH_PARENT));
+        colorsCard.addView(stopsRow);
 
         final LinearLayout colors = row();
         final HorizontalScrollView colorsScroll = new HorizontalScrollView(getContext());
         colorsScroll.addView(colors);
-        content.addView(colorsScroll);
+        colorsCard.addView(colorsScroll);
         final LayoutInflater inflater = LayoutInflater.from(getContext());
         final List<ColorSwatchView> swatches = new ArrayList<>();
         final Runnable buildStops = () -> {
@@ -687,7 +722,7 @@ public final class EditorPanel extends LinearLayout {
             buildStops.run();
             committed();
         });
-        content.addView(hint(spec.gradient));
+        colorsCard.addView(hint(spec.gradient));
 
         // sliders, then the cycle speed
         for (int i = 0; i < spec.params.length; i++) {
@@ -730,12 +765,11 @@ public final class EditorPanel extends LinearLayout {
             final TextView item = new TextView(getContext());
             final boolean current = preset.name.equals(selected);
             item.setText(current ? "✓  " + preset.name : preset.name);
-            item.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+            item.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
             item.setTypeface(current ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-            item.setMinHeight(dp(52));
+            card(item);
+            item.setMinHeight(dp(48));
             item.setGravity(Gravity.CENTER_VERTICAL);
-            item.setPadding(dp(4), 0, dp(4), 0);
-            item.setBackground(selectable());
             item.setOnClickListener(v -> {
                 pushUndo();
                 CustomTheme.loadPreset(getContext(), preset.name);
@@ -786,10 +820,11 @@ public final class EditorPanel extends LinearLayout {
     private View slider(CustomTheme.ParamSpec spec, Getter getter, Setter setter) {
         final LinearLayout box = new LinearLayout(getContext());
         box.setOrientation(VERTICAL);
-        box.setPadding(0, dp(10), 0, dp(6));
+        card(box);
 
         final LinearLayout top = row();
         final TextView name = label(getContext().getString(spec.label));
+        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         top.addView(name, new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         final TextView fine = new TextView(getContext());
         fine.setText(R.string.fine);
@@ -803,11 +838,11 @@ public final class EditorPanel extends LinearLayout {
         fine.setVisibility(INVISIBLE);
         top.addView(fine, marginEnd(dp(8)));
         final TextView value = new TextView(getContext());
-        value.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        value.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         value.setTypeface(Typeface.DEFAULT_BOLD);
-        value.setMinWidth(dp(72));
+        value.setMinWidth(dp(68));
         value.setGravity(Gravity.CENTER);
-        value.setPadding(dp(10), dp(8), dp(10), dp(8));
+        value.setPadding(dp(10), dp(5), dp(10), dp(5));
         final GradientDrawable valueBg = new GradientDrawable();
         valueBg.setCornerRadius(dp(8));
         valueBg.setStroke(Math.max(1, dp(1)), themeColor(android.R.attr.textColorSecondary));
@@ -821,16 +856,21 @@ public final class EditorPanel extends LinearLayout {
         final Button plus = nudgeButton("+", R.string.nudge_up);
         final SeekBar seek = new SeekBar(getContext());
         seek.setMax(spec.steps);
-        seek.setMinimumHeight(dp(48));
+        seek.setMinimumHeight(dp(44));
         bottom.addView(minus);
-        bottom.addView(seek, new LayoutParams(0, dp(48), 1));
+        bottom.addView(seek, new LayoutParams(0, dp(44), 1));
         bottom.addView(plus);
         box.addView(bottom);
+        if (spec.hint != 0) {
+            final TextView hint = hint(spec.hint);
+            hint.setPadding(0, 0, 0, dp(2));
+            box.addView(hint);
+        }
 
         final Runnable sync = () -> {
             final float v = getter.get();
             seek.setProgress(spec.progress(v));
-            value.setText(spec.text(v));
+            value.setText(spec.text(getContext(), v));
         };
         sync.run();
 
@@ -842,7 +882,7 @@ public final class EditorPanel extends LinearLayout {
         };
         final java.util.function.IntConsumer applyProgress = p -> {
             final float v = spec.value(p);
-            value.setText(spec.text(v));
+            value.setText(spec.text(getContext(), v));
             setter.set(v, false); // live preview
         };
 
@@ -866,7 +906,7 @@ public final class EditorPanel extends LinearLayout {
         });
 
         // fine mode: hold still, then movement is 10x finer
-        final float[] t = new float[4]; // down x, last x, anchor x, anchor progress
+        final float[] t = new float[5]; // down x, last x, anchor x, anchor progress, down y
         final boolean[] fineOn = new boolean[1];
         final Runnable enterFine = () -> {
             fineOn[0] = true;
@@ -882,6 +922,7 @@ public final class EditorPanel extends LinearLayout {
                 case MotionEvent.ACTION_DOWN:
                     fineOn[0] = false;
                     t[0] = t[1] = e.getX();
+                    t[4] = e.getY();
                     v.postDelayed(enterFine, HOLD_MS);
                     return false;
                 case MotionEvent.ACTION_MOVE:
@@ -896,8 +937,8 @@ public final class EditorPanel extends LinearLayout {
                         }
                         return true;
                     }
-                    if (Math.abs(e.getX() - t[0]) > touchSlop) {
-                        v.removeCallbacks(enterFine);
+                    if (Math.abs(e.getX() - t[0]) > touchSlop || Math.abs(e.getY() - t[4]) > touchSlop) {
+                        v.removeCallbacks(enterFine); // dragging or scrolling, not holding
                     }
                     return false;
                 case MotionEvent.ACTION_UP:
@@ -911,6 +952,15 @@ public final class EditorPanel extends LinearLayout {
                         seek.onTouchEvent(cancel); // end the seekbar's own tracking, if any
                         cancel.recycle();
                         commit[0].run();
+                        return true;
+                    }
+                    if (e.getActionMasked() == MotionEvent.ACTION_UP && !seek.isPressed()
+                            && Math.abs(e.getX() - t[0]) <= touchSlop && Math.abs(e.getY() - t[4]) <= touchSlop) {
+                        // a tap (not a drag), probably while scrolling: don't jump the value
+                        final MotionEvent cancel = MotionEvent.obtain(e);
+                        cancel.setAction(MotionEvent.ACTION_CANCEL);
+                        seek.onTouchEvent(cancel);
+                        cancel.recycle();
                         return true;
                     }
                     return false;
@@ -930,8 +980,17 @@ public final class EditorPanel extends LinearLayout {
             applyProgress.accept(p);
         }, commit[0]);
 
-        // typing
+        // typing (or for choices, the next one)
         value.setOnClickListener(v -> {
+            if (spec.labels != null) {
+                final float next = (Math.round(getter.get()) + 1) % spec.labels.length;
+                pushUndo();
+                setter.set(next, true);
+                committed();
+                seek.setProgress(spec.progress(next));
+                value.setText(spec.text(getContext(), next));
+                return;
+            }
             final EditText input = new EditText(getContext());
             input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
                     | (spec.min < 0 ? InputType.TYPE_NUMBER_FLAG_SIGNED : 0));
@@ -942,7 +1001,7 @@ public final class EditorPanel extends LinearLayout {
             wrap.addView(input);
             final AlertDialog dialog = new AlertDialog.Builder(getContext())
                     .setTitle(spec.label)
-                    .setMessage(getContext().getString(R.string.type_value_range, spec.text(spec.min), spec.text(spec.max)))
+                    .setMessage(getContext().getString(R.string.type_value_range, spec.text(getContext(), spec.min), spec.text(getContext(), spec.max)))
                     .setView(wrap)
                     .setPositiveButton(android.R.string.ok, (d, which) -> {
                         try {
@@ -952,7 +1011,7 @@ public final class EditorPanel extends LinearLayout {
                             setter.set(typed, true);
                             committed();
                             seek.setProgress(spec.progress(typed));
-                            value.setText(spec.text(typed));
+                            value.setText(spec.text(getContext(), typed));
                         } catch (NumberFormatException ignored) {
                             // leave it unchanged
                         }
@@ -973,17 +1032,27 @@ public final class EditorPanel extends LinearLayout {
                 if (seek.getProgress() != spec.progress(v)) {
                     seek.setProgress(spec.progress(v));
                 }
-                value.setText(spec.text(v));
+                value.setText(spec.text(getContext(), v));
             }
         });
         return box;
     }
 
-    /** Runs step on press, then repeatedly (faster and faster) while held, then done. */
+    /**
+     * Runs step on a tap, or repeatedly (faster and faster) while held, then
+     * done. Moving the finger (e.g., scrolling) cancels it.
+     */
     private void repeatOnHold(View button, Runnable step, Runnable done) {
         final long[] delay = new long[1];
+        final float[] down = new float[2];
+        final boolean[] holding = new boolean[1];
         final Runnable[] repeat = new Runnable[1];
         repeat[0] = () -> {
+            if (!holding[0]) {
+                holding[0] = true;
+                button.getParent().requestDisallowInterceptTouchEvent(true); // it's a hold, not a scroll
+                pushUndo();
+            }
             step.run();
             delay[0] = Math.max(40, (long) (delay[0] * 0.8));
             button.postDelayed(repeat[0], delay[0]);
@@ -994,18 +1063,38 @@ public final class EditorPanel extends LinearLayout {
                     if (!v.isEnabled()) {
                         return false;
                     }
+                    down[0] = e.getX();
+                    down[1] = e.getY();
+                    holding[0] = false;
                     v.setPressed(true);
-                    v.getParent().requestDisallowInterceptTouchEvent(true);
-                    pushUndo();
-                    step.run();
-                    delay[0] = 350;
-                    v.postDelayed(repeat[0], delay[0]);
+                    delay[0] = 300;
+                    v.postDelayed(repeat[0], 400);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (!holding[0] && (Math.abs(e.getX() - down[0]) > touchSlop || Math.abs(e.getY() - down[1]) > touchSlop)) {
+                        v.setPressed(false);
+                        v.removeCallbacks(repeat[0]);
+                    }
                     return true;
                 case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    v.setPressed(false);
                     v.removeCallbacks(repeat[0]);
-                    done.run();
+                    if (holding[0]) {
+                        done.run();
+                    } else if (v.isPressed()) {
+                        pushUndo();
+                        step.run(); // a tap
+                        done.run();
+                    }
+                    v.setPressed(false);
+                    holding[0] = false;
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    v.removeCallbacks(repeat[0]);
+                    v.setPressed(false);
+                    if (holding[0]) {
+                        done.run();
+                    }
+                    holding[0] = false;
                     return true;
             }
             return true;
@@ -1015,9 +1104,8 @@ public final class EditorPanel extends LinearLayout {
     /** A labeled switch row (the whole row toggles it). */
     private View toggle(String text, String summary, int icon, BoolGetter getter, BoolSetter setter) {
         final LinearLayout box = row();
-        box.setMinimumHeight(dp(64));
-        box.setPadding(0, dp(8), 0, dp(8));
-        box.setBackground(selectable());
+        card(box);
+        box.setMinimumHeight(dp(56));
         if (icon != 0) {
             final ImageView iv = new ImageView(getContext());
             iv.setImageResource(icon);
@@ -1055,6 +1143,18 @@ public final class EditorPanel extends LinearLayout {
     }
 
     // --- small helpers
+
+    /** Puts a control on a nearly opaque card (so it's readable over the wallpaper). */
+    private void card(View v) {
+        final GradientDrawable bg = new GradientDrawable();
+        bg.setColor(cardColor);
+        bg.setCornerRadius(dp(14));
+        v.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{bg, selectable()}));
+        v.setPadding(dp(12), dp(6), dp(12), dp(6));
+        final LayoutParams lp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = dp(8);
+        v.setLayoutParams(lp);
+    }
 
     private int dp(float v) {
         return Math.round(v * density);

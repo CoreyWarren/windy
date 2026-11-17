@@ -569,7 +569,7 @@ impl Renderer {
         let f = &c.flow;
         self.globals.flow_a = [f.variation, f.clumping, f.real_wind, f.turbulence];
         self.globals.flow_b = [f.swirl_size, f.evolution, f.warp, f.momentum];
-        self.globals.flow_c = [f.buoyancy, 0.0, 0.0, 0.0];
+        self.globals.flow_c = [f.buoyancy, f.size_variation, f.size_style, 0.0];
 
         let fx = &c.effects;
         self.globals.effects = fx.enabled & ((1 << Effects::COUNT) - 1);
@@ -658,15 +658,16 @@ fn init_particles(config: &Config) -> Vec<Particle> {
             let gx = (i as u32 % dim) as f32 / dim as f32;
             let gy = (i as u32 / dim) as f32 / dim as f32;
             let pos = [rng.next_f32(), rng.next_f32()];
+            let age = rng.next_f32();
             Particle {
                 pos,
                 prev: pos,
                 uv: [gx, gy],
-                age: rng.next_f32(),
+                age,
                 speed: 0.0,
                 vel: [0.0, 0.0],
                 seed: rng.next_f32(),
-                _pad: 0.0,
+                life0: 1.0, // already faded in
             }
         })
         .collect()

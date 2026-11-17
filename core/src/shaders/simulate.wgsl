@@ -49,6 +49,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         new_pos = spawn_pos(seed);
         life = 0.2 + rand(vec2<f32>(p.uv.x * p.uv.y + g.time_acc)) * 0.8;
         p.seed = rand(seed * 3.7 + vec2<f32>(0.13, 0.71));
+        p.life0 = life;
         p.prev = new_pos; // don't draw a line from the old position
         vel = goal;
     } else {
