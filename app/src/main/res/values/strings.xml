@@ -40,6 +40,8 @@
     <string name="tab_flow">Flow</string>
     <string name="tab_trails">Trails</string>
     <string name="tab_lines">Lines</string>
+    <string name="visibility">Effective visibility: %1$s (opacity × streak color alpha × variation)</string>
+    <string name="visibility_too_faint">Effective visibility: %1$s — too faint to see. Raise opacity or the streak colors\' alpha.</string>
     <string name="bar_edit">Edit</string>
     <string name="bar_set_wallpaper">Set wallpaper</string>
     <string name="section_speed_trails">Speed &amp; trails</string>

@@ -154,7 +154,7 @@ fn streak_fade(age: f32, life0: f32) -> f32 {
 }
 
 fn trait_opacity(seed: f32, variation: f32) -> f32 {
-    return 1.0 - variation * 0.7 * trait_rand(seed, 2.0);
+    return 1.0 - variation * 0.3 * trait_rand(seed, 2.0); // at most 30% dimmer
 }
 
 fn trait_speed(seed: f32, variation: f32) -> f32 {

@@ -14,6 +14,8 @@ struct VsOut {
     @location(5) hw: f32,          // this particle's half-width in px
 };
 
+const MIN_HALF_WIDTH: f32 = 0.6; // px
+
 // ink effect: wider, softer strokes
 fn half_width() -> f32 {
     if (has_fx(g.effects, FX_INK)) {
@@ -40,7 +42,10 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     let normal = vec2<f32>(-dir.y, dir.x);
 
     // pad by half-width+1px to give room for antialiasing
-    let hw = half_width() * trait_width(p.seed, g.flow_c.y, g.flow_c.z);
+    // lines thinner than about a pixel are drawn a pixel wide but fainter
+    // (matching their coverage), so they don't disappear
+    let hw_real = half_width() * trait_width(p.seed, g.flow_c.y, g.flow_c.z);
+    let hw = max(hw_real, MIN_HALF_WIDTH);
     let half_w = hw + 1.0;
     let half_l = len * 0.5;
 
@@ -68,7 +73,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     // accumulate proportional to distance travelled
     // (instead of per-frame like the original one, which made things brighter on slower framerates)
     let r = min(len / max(2.0 * hw, 1e-3), 1.0);
-    out.alpha = life * r * trait_opacity(p.seed, g.flow_a.x);
+    out.alpha = life * r * trait_opacity(p.seed, g.flow_a.x) * (hw_real / hw);
     out.hw = hw;
 
     // snow effect: flakes are drawn as sprites instead of streaks

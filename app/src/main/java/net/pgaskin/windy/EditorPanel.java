@@ -498,6 +498,7 @@ public final class EditorPanel extends LinearLayout {
         content.addView(section(R.string.section_streaks, HUE_GREEN));
         content.addView(themeParamSlider(CustomTheme.PARAM_LINE_HALF_WIDTH));
         content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_OPACITY));
+        content.addView(visibilityLine());
         content.addView(section(R.string.section_particles, HUE_AMBER));
         content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_COUNT));
         content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_LIFE));
@@ -574,6 +575,48 @@ public final class EditorPanel extends LinearLayout {
         content.addView(themeParamSlider(CustomTheme.PARAM_SIZE_VARIATION));
         content.addView(themeParamSlider(CustomTheme.PARAM_SIZE_STYLE));
         content.addView(themeParamSlider(CustomTheme.PARAM_CLUMPING));
+    }
+
+    /**
+     * How visible the streaks really are: the opacity, the streak colors'
+     * alpha, the variation's dimming, and lines thinner than a pixel all
+     * multiply together, which isn't obvious from the sliders.
+     */
+    private TextView visibilityLine() {
+        final TextView tv = new TextView(getContext());
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        tv.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        tv.setPadding(dp(14), 0, dp(14), dp(10));
+        final int normal = themeColor(android.R.attr.textColorSecondary);
+        final Runnable refresh = () -> {
+            final float pct = effectiveVisibility() * 100f;
+            final String value = pct < 10 ? String.format(java.util.Locale.ROOT, "%.1f%%", pct) : Math.round(pct) + "%";
+            if (pct < 3f) {
+                tv.setText(getContext().getString(R.string.visibility_too_faint, value));
+                tv.setTextColor(HUE_AMBER);
+            } else {
+                tv.setText(getContext().getString(R.string.visibility, value));
+                tv.setTextColor(normal);
+            }
+        };
+        refresh.run();
+        refreshers.add(refresh);
+        return tv;
+    }
+
+    private float effectiveVisibility() {
+        final Context ctx = getContext();
+        final int[] colors = CustomTheme.colors(ctx);
+        final float colorAlpha = ((colors[CustomTheme.COLOR_SLOW] >>> 24) * 0.7f + (colors[CustomTheme.COLOR_FAST] >>> 24) * 0.3f) / 255f;
+        final float opacity = CustomTheme.param(ctx, CustomTheme.PARAM_PARTICLE_OPACITY);
+        final float variation = CustomTheme.param(ctx, CustomTheme.PARAM_VARIATION);
+        // typical width (like trait_width in the shaders, at the median)
+        final float sizeVar = CustomTheme.param(ctx, CustomTheme.PARAM_SIZE_VARIATION);
+        final int style = Math.round(CustomTheme.param(ctx, CustomTheme.PARAM_SIZE_STYLE));
+        final float typical = style == 2 ? (float) Math.pow(2, -sizeVar) : style == 1 ? (float) Math.pow(2, -0.75 * sizeVar) : 1f;
+        final float halfWidthPx = CustomTheme.param(ctx, CustomTheme.PARAM_LINE_HALF_WIDTH) * density * typical;
+        final float thin = Math.min(1f, halfWidthPx / 0.6f);
+        return Math.max(0f, Math.min(1f, opacity * colorAlpha * (1f - 0.15f * variation) * thin));
     }
 
     /** A section heading with a colored bar; the cards after it are tinted to match. */
