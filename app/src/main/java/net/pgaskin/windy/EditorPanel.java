@@ -88,6 +88,7 @@ public final class EditorPanel extends LinearLayout {
     private float heightFraction = DEFAULT_HEIGHT;
     private boolean open;
     private Object backCallback; // OnBackInvokedCallback on api 33+
+    private View outside; // catches taps above the panel to close it
 
     public EditorPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -183,6 +184,7 @@ public final class EditorPanel extends LinearLayout {
             undo.clear();
             CustomTheme.addListener(themeListener);
             registerBack();
+            showOutside();
             setAlpha(1f);
             setTranslationY(dp(2000)); // off screen until it's sized
             setVisibility(VISIBLE);
@@ -207,6 +209,7 @@ public final class EditorPanel extends LinearLayout {
         CustomTheme.persist(getContext());
         CustomTheme.removeListener(themeListener);
         unregisterBack();
+        hideOutside();
         if (host != null) {
             host.onEdited();
         }
@@ -215,6 +218,29 @@ public final class EditorPanel extends LinearLayout {
                 setVisibility(GONE);
             }
         }).start();
+    }
+
+    /** A clear layer behind the panel, so tapping above it closes it. */
+    private void showOutside() {
+        if (!(getParent() instanceof ViewGroup)) {
+            return;
+        }
+        final ViewGroup parent = (ViewGroup) getParent();
+        if (outside == null) {
+            outside = new View(getContext());
+            outside.setContentDescription(getContext().getString(R.string.editor_close));
+            outside.setOnClickListener(v -> close());
+        }
+        if (outside.getParent() == null) {
+            parent.addView(outside, parent.indexOfChild(this), new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+    }
+
+    private void hideOutside() {
+        if (outside != null && outside.getParent() instanceof ViewGroup) {
+            ((ViewGroup) outside.getParent()).removeView(outside);
+        }
     }
 
     /** Handles back. Returns false if the editor isn't open. */

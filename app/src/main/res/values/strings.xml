@@ -42,6 +42,7 @@
     <string name="tab_presets">Presets</string>
     <string name="editor_handle">Drag to resize, hold to see the wallpaper</string>
     <string name="undo">Undo</string>
+    <string name="editor_close">Close the editor</string>
     <string name="before">Hold: before</string>
     <string name="compare">Hold: compare</string>
     <string name="compare_hint">Hold to see the wallpaper with %1$s switched</string>
