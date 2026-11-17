@@ -459,6 +459,9 @@ impl Theme {
 impl Config {
     /// The wind speed at which `trail_follow_speed` leaves the fade unchanged.
     pub const TRAIL_REFERENCE_WIND_SPEED: f32 = 0.15;
+
+    /// The lowest trail decay `trail_follow_speed` will go down to.
+    pub const TRAIL_FOLLOW_MIN_DECAY: f32 = 0.6;
 }
 
 impl Default for Config {
