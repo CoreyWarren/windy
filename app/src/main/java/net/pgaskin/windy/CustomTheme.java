@@ -114,14 +114,16 @@ public final class CustomTheme {
     public static final int PARAM_WIND_SPEED = 3;
     public static final int PARAM_PARTICLE_COUNT = 4;
     public static final int PARAM_PARTICLE_LIFE = 5;
+    public static final int PARAM_TRAIL_FOLLOW_SPEED = 6; // 0 or 1
 
     public static final ParamSpec[] PARAMS = { // [PARAM_*]
             new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false),
             new ParamSpec("particle_opacity", R.string.param_opacity, 0.0f, 2.0f, 100, 2, false),
-            new ParamSpec("alpha_decay", R.string.param_trail_decay, 0.95f, 0.9999f, 500, 4, true),
+            new ParamSpec("alpha_decay", R.string.param_trail_decay, 0.80f, 0.9999f, 600, 4, true),
             new ParamSpec("wind_speed", R.string.param_wind_speed, 0.0f, 2.0f, 200, 3, false),
             new ParamSpec("particle_count", R.string.param_particle_count, 256, 16384, 63, 0, false),
             new ParamSpec("particle_life", R.string.param_particle_life, 1.0f, 30.0f, 58, 1, false),
+            new ParamSpec("trail_follow_speed", R.string.param_trail_follow_speed, 0.0f, 1.0f, 1, 0, false), // on/off
     };
 
     public static final int PARAM_COUNT = PARAMS.length;
@@ -435,6 +437,41 @@ public final class CustomTheme {
         }
         next[index] = value;
         setEffects(context, effects(context), null, next, persist);
+    }
+
+    /** Everything about the custom theme, for undo and comparing. */
+    public static final class Snapshot {
+        final int[] colors;
+        final float[] params;
+        final int effects;
+        final int[] effectColors;
+        final float[] effectParams;
+
+        private Snapshot(int[] colors, float[] params, int effects, int[] effectColors, float[] effectParams) {
+            this.colors = colors;
+            this.params = params;
+            this.effects = effects;
+            this.effectColors = effectColors;
+            this.effectParams = effectParams;
+        }
+
+        public boolean same(Snapshot other) {
+            return other != null && Arrays.equals(colors, other.colors) && Arrays.equals(params, other.params)
+                    && effects == other.effects && Arrays.equals(effectColors, other.effectColors)
+                    && Arrays.equals(effectParams, other.effectParams);
+        }
+    }
+
+    public static Snapshot snapshot(Context context) {
+        return new Snapshot(colors(context), params(context), effects(context), effectColors(context), effectParams(context));
+    }
+
+    /** Applies a snapshot. See {@link #set} for persist. */
+    public static void restore(Context context, Snapshot snapshot, boolean persist) {
+        effects = snapshot.effects;
+        effectColors = snapshot.effectColors.clone();
+        effectParams = snapshot.effectParams.clone();
+        set(context, snapshot.colors, snapshot.params, persist); // also persists and applies the effects
     }
 
     /** Resets one effect's colors and params to the defaults (keeping it on or off). */

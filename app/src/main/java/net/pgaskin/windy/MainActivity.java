@@ -104,6 +104,17 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        // api 33+ uses the editor's OnBackInvokedCallback instead
+        final EditorPanel editor = findViewById(R.id.editor_panel);
+        if (editor != null && editor.handleBack()) {
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         preview.setPaused(true);
@@ -116,6 +127,9 @@ public class MainActivity extends Activity {
             toolbar.setPadding(bars.left, bars.top, bars.right, 0);
             themeScroll.setPadding(bars.left, themeScroll.getPaddingTop(), bars.right, bars.bottom);
             customTheme.setPadding(bars.left, customTheme.getPaddingTop(), bars.right, 0);
+            final EditorPanel editor = findViewById(R.id.editor_panel);
+            editor.setPadding(bars.left, 0, bars.right, 0);
+            editor.setNavInset(bars.bottom);
             return insets;
         });
     }

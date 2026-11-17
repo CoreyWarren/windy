@@ -460,7 +460,12 @@ impl Renderer {
         // trail length fade (fps-independent)
         // ink and comet tails linger (or shorten)
         let linger = self.config.effects.trail_linger();
-        let decay = (1.0 - (1.0 - self.current_alpha_decay) / linger).clamp(0.0, 0.99999);
+        let mut fade = 1.0 - self.current_alpha_decay;
+        if self.config.trail_follow_speed {
+            // faster wind travels further per frame, so fade faster to match
+            fade *= (self.config.wind_speed / Config::TRAIL_REFERENCE_WIND_SPEED).max(0.05);
+        }
+        let decay = (1.0 - fade / linger).clamp(0.0, 0.99999);
         self.globals.fade_decay = decay.powf((dt * TRAIL_UPDATE_FPS).max(0.0));
         queue.write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&self.globals));
     }

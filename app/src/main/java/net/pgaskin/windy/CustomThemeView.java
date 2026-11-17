@@ -75,11 +75,11 @@ public class CustomThemeView extends LinearLayout {
         swatchList.addView(generate);
 
         final View advanced = inflater.inflate(R.layout.custom_advanced, swatchList, false);
-        advanced.setOnClickListener(v -> showAdvancedDialog());
+        advanced.setOnClickListener(v -> openEditor(EditorPanel.TAB_MOTION));
         swatchList.addView(advanced);
 
         final View effects = inflater.inflate(R.layout.custom_effects, swatchList, false);
-        effects.setOnClickListener(v -> showEffectsDialog());
+        effects.setOnClickListener(v -> openEditor(EditorPanel.TAB_EFFECTS));
         swatchList.addView(effects);
 
         presetSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -212,6 +212,27 @@ public class CustomThemeView extends LinearLayout {
         presetSpinner.setSelection(Math.max(items.indexOf(selected), 0));
         presetDelete.setEnabled(!selected.isEmpty());
         presetCode.setVisibility(Prefs.developerMode(getContext()) ? VISIBLE : GONE);
+        final EditorPanel panel = editor();
+        if (panel != null) {
+            panel.onPresetsChanged();
+        }
+    }
+
+    private void openEditor(int tab) {
+        final EditorPanel panel = editor();
+        if (panel != null) {
+            panel.open(this, tab, -1);
+        }
+    }
+
+    private EditorPanel editor() {
+        return getRootView().findViewById(R.id.editor_panel);
+    }
+
+    /** After the editor changes something. */
+    void onEdited() {
+        updatePresetSelection();
+        refreshColors();
     }
 
     private void updatePresetSelection() {
@@ -225,7 +246,7 @@ public class CustomThemeView extends LinearLayout {
         refreshPresets();
     }
 
-    private void pickColor(int color, String label) {
+    void pickColor(int color, String label) {
         final int initial = CustomTheme.color(getContext(), color);
         ColorPickerDialog.show(getContext(), label, initial, CustomTheme.COLORS[color].hasAlpha,
                 picked -> CustomTheme.setColor(getContext(), color, picked, false), // live preview
@@ -235,332 +256,7 @@ public class CustomThemeView extends LinearLayout {
                 });
     }
 
-    private void showAdvancedDialog() {
-        final float[] initial = CustomTheme.params(getContext());
-        final SeekBar[] sliders = new SeekBar[CustomTheme.PARAM_COUNT];
-        final TextView[] values = new TextView[CustomTheme.PARAM_COUNT];
-
-        final LayoutInflater inflater = LayoutInflater.from(getContext());
-        final LinearLayout container = (LinearLayout) inflater.inflate(R.layout.dialog_advanced, null);
-
-        final View title = inflater.inflate(R.layout.dialog_advanced_title, null);
-        title.findViewById(R.id.param_restart).setOnClickListener(v -> WindyWallpaperRenderer.restartAll());
-
-        for (int i = 0; i < CustomTheme.PARAM_COUNT; i++) {
-            final int param = i;
-            final View row = inflater.inflate(R.layout.custom_param, container, false);
-            final CustomTheme.ParamSpec spec = CustomTheme.PARAMS[param];
-            ((TextView) row.findViewById(R.id.param_label)).setText(spec.label);
-            values[param] = row.findViewById(R.id.param_value);
-            sliders[param] = row.findViewById(R.id.param_slider);
-            sliders[param].setMax(spec.steps);
-            sliders[param].setProgress(spec.progress(initial[param]));
-            values[param].setText(spec.text(initial[param]));
-            sliders[param].setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    final float value = spec.value(progress);
-                    values[param].setText(spec.text(value));
-                    if (fromUser) {
-                        CustomTheme.setParam(getContext(), param, value, false); // live preview
-                    }
-                }
-
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {
-                }
-            });
-            container.addView(row);
-        }
-
-        final ScrollView advancedScroll = new ScrollView(getContext()); // more params than fit on small screens
-        advancedScroll.addView(container);
-
-        final boolean[] accepted = {false};
-        final AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setCustomTitle(title)
-                .setView(advancedScroll)
-                .setPositiveButton(R.string.save, (d, which) -> {
-                    accepted[0] = true;
-                    CustomTheme.persist(getContext());
-                    updatePresetSelection();
-                })
-                .setNeutralButton(R.string.reset, null) // set below so it doesn't dismiss it
-                .setNegativeButton(android.R.string.cancel, null)
-                .setOnDismissListener(d -> {
-                    if (!accepted[0]) {
-                        CustomTheme.setParams(getContext(), initial, false); // undo the live preview
-                    }
-                })
-                .create();
-
-        final Window window = dialog.getWindow();
-        if (window != null) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); // don't dim the wallpaper being previewed
-        }
-        dialog.show();
-        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            final float[] defaults = CustomTheme.themeParams(Themes.CUSTOM);
-            CustomTheme.setParams(getContext(), defaults, false);
-            for (int i = 0; i < CustomTheme.PARAM_COUNT; i++) {
-                sliders[i].setProgress(CustomTheme.PARAMS[i].progress(defaults[i]));
-            }
-        });
-    }
-
-    private void showEffectsDialog() {
-        final int initialEffects = CustomTheme.effects(getContext());
-        final int[] initialColors = CustomTheme.effectColors(getContext());
-        final float[] initialParams = CustomTheme.effectParams(getContext());
-        final Switch[] effectSwitches = new Switch[CustomTheme.EFFECT_COUNT];
-        final ColorSwatchView[] effectSwatches = new ColorSwatchView[CustomTheme.EFFECT_COUNT];
-
-        final LayoutInflater inflater = LayoutInflater.from(getContext());
-        final LinearLayout container = (LinearLayout) inflater.inflate(R.layout.dialog_advanced, null);
-
-        final View title = inflater.inflate(R.layout.dialog_effects_title, null);
-        title.findViewById(R.id.effect_restart).setOnClickListener(v -> WindyWallpaperRenderer.restartAll());
-
-        final Runnable refreshRows = () -> {
-            final int enabled = CustomTheme.effects(getContext());
-            for (int i = 0; i < CustomTheme.EFFECT_COUNT; i++) {
-                final boolean on = (enabled & (1 << i)) != 0;
-                effectSwitches[i].setChecked(on);
-                effectSwatches[i].setGradient(CustomTheme.effectGradient(getContext(), i));
-                effectSwatches[i].setAlpha(on ? 1.0f : 0.4f);
-            }
-        };
-
-        for (int i = 0; i < CustomTheme.EFFECT_COUNT; i++) {
-            final int effect = i;
-            final CustomTheme.EffectSpec spec = CustomTheme.EFFECTS[effect];
-            final String label = getContext().getString(spec.label);
-            final View row = inflater.inflate(R.layout.custom_effect, container, false);
-            ((TextView) row.findViewById(R.id.effect_label)).setText(label);
-            ((TextView) row.findViewById(R.id.effect_summary)).setText(spec.summary);
-            effectSwitches[effect] = row.findViewById(R.id.effect_switch);
-            effectSwatches[effect] = row.findViewById(R.id.effect_color);
-            effectSwitches[effect].setContentDescription(label);
-            effectSwatches[effect].setContentDescription(getContext().getString(R.string.effect_tune, label));
-
-            effectSwitches[effect].setOnClickListener(v -> { // only user changes, after toggling
-                final boolean checked = effectSwitches[effect].isChecked();
-                CustomTheme.setEffectEnabled(getContext(), effect, checked, false); // live preview
-                effectSwatches[effect].setAlpha(checked ? 1.0f : 0.4f);
-            });
-
-            // the name and the swatch open the effect's own settings
-            row.findViewById(R.id.effect_text).setOnClickListener(v -> showEffectDialog(effect, refreshRows));
-            effectSwatches[effect].setOnClickListener(v -> showEffectDialog(effect, refreshRows));
-            container.addView(row);
-        }
-        refreshRows.run();
-
-        final ScrollView scroll = new ScrollView(getContext());
-        scroll.addView(container);
-
-        final boolean[] accepted = {false};
-        final AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setCustomTitle(title)
-                .setView(scroll)
-                .setPositiveButton(R.string.save, (d, which) -> {
-                    accepted[0] = true;
-                    CustomTheme.persist(getContext());
-                    updatePresetSelection();
-                })
-                .setNeutralButton(R.string.reset, null) // set below so it doesn't dismiss it
-                .setNegativeButton(android.R.string.cancel, null)
-                .setOnDismissListener(d -> {
-                    if (!accepted[0]) {
-                        CustomTheme.setEffects(getContext(), initialEffects, initialColors, initialParams, false); // undo the live preview
-                    }
-                })
-                .create();
-
-        final Window window = dialog.getWindow();
-        if (window != null) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); // don't dim the wallpaper being previewed
-        }
-        dialog.show();
-        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            CustomTheme.setEffects(getContext(), 0, CustomTheme.defaultEffectColors(), CustomTheme.defaultEffectParams(), false);
-            refreshRows.run();
-        });
-    }
-
-    /**
-     * One effect's switch, gradient, and sliders. Changes are live and kept in
-     * memory, the effects dialog underneath saves or undoes them.
-     */
-    private void showEffectDialog(int effect, Runnable onChanged) {
-        final CustomTheme.EffectSpec spec = CustomTheme.EFFECTS[effect];
-        final String label = getContext().getString(spec.label);
-        final LayoutInflater inflater = LayoutInflater.from(getContext());
-        final LinearLayout container = (LinearLayout) inflater.inflate(R.layout.dialog_advanced, null);
-
-        // on/off
-        final Switch enabled = new Switch(getContext());
-        enabled.setText(R.string.effect_enabled);
-        enabled.setChecked(CustomTheme.effectEnabled(getContext(), effect));
-        enabled.setOnClickListener(v -> {
-            CustomTheme.setEffectEnabled(getContext(), effect, enabled.isChecked(), false); // live preview
-            onChanged.run();
-        });
-        container.addView(enabled);
-
-        // gradient stops, with -/+ to change how many
-        final float density = getResources().getDisplayMetrics().density;
-        final LinearLayout stopsRow = new LinearLayout(getContext());
-        stopsRow.setOrientation(LinearLayout.HORIZONTAL);
-        stopsRow.setGravity(Gravity.CENTER_VERTICAL);
-        final TextView stopsLabel = new TextView(getContext());
-        stopsLabel.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        stopsRow.addView(stopsLabel);
-        final Button fewer = new Button(getContext(), null, android.R.attr.borderlessButtonStyle);
-        final Button more = new Button(getContext(), null, android.R.attr.borderlessButtonStyle);
-        fewer.setText("\u2212");
-        more.setText("+");
-        fewer.setContentDescription(getContext().getString(R.string.effect_fewer_colors));
-        more.setContentDescription(getContext().getString(R.string.effect_more_colors));
-        for (final Button b : new Button[]{fewer, more}) {
-            b.setTextSize(20);
-            b.setMinWidth(Math.round(48 * density));
-            b.setMinimumWidth(Math.round(48 * density));
-            stopsRow.addView(b);
-        }
-        container.addView(stopsRow);
-
-        final LinearLayout colors = new LinearLayout(getContext());
-        colors.setOrientation(LinearLayout.HORIZONTAL);
-        final HorizontalScrollView colorsScroll = new HorizontalScrollView(getContext());
-        colorsScroll.addView(colors);
-        container.addView(colorsScroll);
-
-        final Runnable rebuildColors = () -> {
-            final int stops = CustomTheme.effectStops(getContext(), effect);
-            stopsLabel.setText(getContext().getString(R.string.effect_colors_count, stops));
-            fewer.setEnabled(stops > CustomTheme.MIN_STOPS);
-            more.setEnabled(stops < CustomTheme.MAX_STOPS);
-            colors.removeAllViews();
-            for (int i = 0; i < stops; i++) {
-                final int stop = i;
-                final String colorLabel = getContext().getString(R.string.effect_color_n, label, stop + 1);
-                final View item = inflater.inflate(R.layout.custom_swatch, colors, false);
-                final ColorSwatchView swatch = item.findViewById(R.id.swatch_color);
-                swatch.setColor(CustomTheme.effectColor(getContext(), effect, stop));
-                ((TextView) item.findViewById(R.id.swatch_label)).setText(String.valueOf(stop + 1));
-                item.setContentDescription(colorLabel);
-                item.setOnClickListener(v -> ColorPickerDialog.show(getContext(), colorLabel,
-                        CustomTheme.effectColor(getContext(), effect, stop), true,
-                        picked -> {
-                            CustomTheme.setEffectColor(getContext(), effect, stop, picked, false); // live preview
-                            swatch.setColor(picked);
-                            onChanged.run();
-                        },
-                        picked -> {
-                            // picking a color turns the effect on
-                            CustomTheme.setEffectColor(getContext(), effect, stop, picked, false);
-                            CustomTheme.setEffectEnabled(getContext(), effect, true, false);
-                            enabled.setChecked(true);
-                            swatch.setColor(picked);
-                            onChanged.run();
-                        }));
-                colors.addView(item);
-            }
-        };
-        fewer.setOnClickListener(v -> {
-            CustomTheme.setEffectStops(getContext(), effect, CustomTheme.effectStops(getContext(), effect) - 1, false);
-            rebuildColors.run();
-            onChanged.run();
-        });
-        more.setOnClickListener(v -> {
-            CustomTheme.setEffectStops(getContext(), effect, CustomTheme.effectStops(getContext(), effect) + 1, false);
-            rebuildColors.run();
-            onChanged.run();
-        });
-        rebuildColors.run();
-
-        final TextView gradient = new TextView(getContext());
-        gradient.setText(spec.gradient);
-        gradient.setTextSize(12);
-        container.addView(gradient);
-
-        // sliders (the effect's own, then the gradient cycle speed)
-        final int sliderCount = spec.params.length + 1;
-        final SeekBar[] sliders = new SeekBar[sliderCount];
-        final int[] sliderParams = new int[sliderCount];
-        final CustomTheme.ParamSpec[] sliderSpecs = new CustomTheme.ParamSpec[sliderCount];
-        for (int i = 0; i < spec.params.length; i++) {
-            sliderParams[i] = i;
-            sliderSpecs[i] = spec.params[i];
-        }
-        sliderParams[spec.params.length] = CustomTheme.EFFECT_PARAM_CYCLE;
-        sliderSpecs[spec.params.length] = CustomTheme.CYCLE_SPEC;
-        for (int i = 0; i < sliderCount; i++) {
-            final int slider = i;
-            final int param = sliderParams[slider];
-            final CustomTheme.ParamSpec ps = sliderSpecs[slider];
-            final float initial = CustomTheme.effectParam(getContext(), effect, param);
-            final View row = inflater.inflate(R.layout.custom_param, container, false);
-            final TextView value = row.findViewById(R.id.param_value);
-            ((TextView) row.findViewById(R.id.param_label)).setText(ps.label);
-            sliders[slider] = row.findViewById(R.id.param_slider);
-            sliders[slider].setMax(ps.steps);
-            sliders[slider].setProgress(ps.progress(initial));
-            value.setText(ps.text(initial));
-            sliders[slider].setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    final float v = ps.value(progress);
-                    value.setText(ps.text(v));
-                    if (fromUser) {
-                        CustomTheme.setEffectParam(getContext(), effect, param, v, false); // live preview
-                    }
-                }
-
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {
-                }
-            });
-            container.addView(row);
-        }
-
-        final ScrollView scroll = new ScrollView(getContext());
-        scroll.addView(container);
-
-        final AlertDialog dialog = new AlertDialog.Builder(getContext())
-                .setTitle(label)
-                .setView(scroll)
-                .setPositiveButton(R.string.done, null)
-                .setNeutralButton(R.string.reset, null) // set below so it doesn't dismiss it
-                .setOnDismissListener(d -> onChanged.run())
-                .create();
-
-        final Window window = dialog.getWindow();
-        if (window != null) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); // don't dim the wallpaper being previewed
-        }
-        dialog.show();
-        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            CustomTheme.resetEffect(getContext(), effect, false);
-            rebuildColors.run();
-            for (int i = 0; i < sliderCount; i++) {
-                final float reset = CustomTheme.effectParam(getContext(), effect, sliderParams[i]);
-                sliders[i].setProgress(sliderSpecs[i].progress(reset)); // updates the value text
-            }
-            onChanged.run();
-        });
-    }
-
-    private void showGenerateDialog() {
+    void showGenerateDialog() {
         final int[] initial = CustomTheme.colors(getContext());
 
         final LayoutInflater inflater = LayoutInflater.from(getContext());
@@ -646,7 +342,7 @@ public class CustomThemeView extends LinearLayout {
                 .show();
     }
 
-    private void showShareDialog() {
+    void showShareDialog() {
         new AlertDialog.Builder(getContext())
                 .setTitle(R.string.share_title)
                 .setItems(new CharSequence[]{
@@ -706,7 +402,7 @@ public class CustomThemeView extends LinearLayout {
                 .show();
     }
 
-    private void showSavePresetDialog() {
+    void showSavePresetDialog() {
         final EditText input = new EditText(getContext());
         input.setSingleLine();
         input.setHint(R.string.preset_name);
@@ -735,7 +431,7 @@ public class CustomThemeView extends LinearLayout {
                 .show();
     }
 
-    private void showDeletePresetDialog() {
+    void showDeletePresetDialog() {
         final String name = CustomTheme.presetName(getContext());
         if (name.isEmpty()) {
             return;

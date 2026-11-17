@@ -28,7 +28,8 @@ const PARAM_ALPHA_DECAY: usize = 2;
 const PARAM_WIND_SPEED: usize = 3;
 const PARAM_PARTICLE_COUNT: usize = 4;
 const PARAM_PARTICLE_LIFE: usize = 5;
-const PARAM_COUNT: usize = 6;
+const PARAM_TRAIL_FOLLOW_SPEED: usize = 6;
+const PARAM_COUNT: usize = 7;
 
 const EFFECT_PARAM_COUNT: usize = Effects::PARAM_COUNT; // per effect
 
@@ -323,6 +324,7 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetCust
         config.wind_speed = params_buf[PARAM_WIND_SPEED];
         config.particle_count = (params_buf[PARAM_PARTICLE_COUNT].round() as u32).clamp(64, 65536);
         config.particle_life = params_buf[PARAM_PARTICLE_LIFE].clamp(0.1, 600.0);
+        config.trail_follow_speed = params_buf[PARAM_TRAIL_FOLLOW_SPEED] >= 0.5;
         st.renderer.set_config(&st.device, config); // note: the colors are instant, but the params ease
         Ok::<(), jni::errors::Error>(()) // leave unchanged on error
     })
@@ -571,6 +573,13 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeThemePa
         PARAM_ALPHA_DECAY => config.alpha_decay,
         PARAM_PARTICLE_COUNT => config.particle_count as f32,
         PARAM_PARTICLE_LIFE => config.particle_life,
+        PARAM_TRAIL_FOLLOW_SPEED => {
+            if config.trail_follow_speed {
+                1.0
+            } else {
+                0.0
+            }
+        }
         _ => config.wind_speed, // PARAM_WIND_SPEED and anything unknown
     };
     value as jfloat

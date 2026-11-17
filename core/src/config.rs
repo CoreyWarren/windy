@@ -26,6 +26,11 @@ pub struct Config {
     /// Trail fade per 1/60s step.
     pub alpha_decay: f32,
 
+    /// Scale the trail fade with the wind speed (relative to
+    /// `Config::TRAIL_REFERENCE_WIND_SPEED`), so streak length stays about the
+    /// same at any speed.
+    pub trail_follow_speed: bool,
+
     /// Faster trail fade applied briefly after the wind field or location
     /// changes, to clear old streamlines.
     pub alpha_decay_changed: f32,
@@ -395,6 +400,11 @@ impl Theme {
     ];
 }
 
+impl Config {
+    /// The wind speed at which `trail_follow_speed` leaves the fade unchanged.
+    pub const TRAIL_REFERENCE_WIND_SPEED: f32 = 0.15;
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -409,6 +419,7 @@ impl Default for Config {
             bg_color2: [0.1, 0.0, 0.1, 0.1],
             alpha_decay: 0.9965,
             alpha_decay_changed: 0.91,
+            trail_follow_speed: false,
             particle_opacity: 1.0,
             line_half_width: 1.0,
             effects: Effects::DEFAULT,
