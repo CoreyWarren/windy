@@ -49,7 +49,8 @@ struct Globals {
     fx_neon_q: vec4<f32>,
     flow_a: vec4<f32>,      // (variation, clumping, real wind, turbulence)
     flow_b: vec4<f32>,      // (swirl size, flow change speed, warp, momentum)
-    flow_c: vec4<f32>,      // (float/sink, size variation, size style, -)
+    flow_c: vec4<f32>,      // (float/sink, size variation, size style, smooth flow: 1 = paths don't cross)
+    flow_d: vec4<f32>,      // (glide offset x, y, overlap brightening off: 1, -)
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)
@@ -164,6 +165,13 @@ fn trait_speed(seed: f32, variation: f32) -> f32 {
 fn trait_life(seed: f32, variation: f32) -> f32 {
     return exp2(variation * (trait_rand(seed, 4.0) - 0.5) * 1.6); // how fast it ages
 }
+
+// the flow field grid (velocity in screen fractions per second, and the
+// normalized wind speed), covering particle positions from -0.1 to 1.1
+const FIELD_W: u32 = 64u;
+const FIELD_H: u32 = 128u;
+const FIELD_MIN: f32 = -0.1;
+const FIELD_SPAN: f32 = 1.2;
 
 // flow noise time wraps at this, and the noise is periodic in time to match
 const FLOW_PERIOD: f32 = 256.0;

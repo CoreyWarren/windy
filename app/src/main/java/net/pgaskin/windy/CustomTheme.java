@@ -147,6 +147,8 @@ public final class CustomTheme {
     public static final int PARAM_BUOYANCY = 15;
     public static final int PARAM_SIZE_VARIATION = 16;
     public static final int PARAM_SIZE_STYLE = 17; // 0 even, 1 rare giants, 2 two sizes
+    public static final int PARAM_PATHS_CROSS = 18; // 0 or 1
+    public static final int PARAM_OVERLAP_BRIGHTEN = 19; // 0 or 1
 
     public static final ParamSpec[] PARAMS = { // [PARAM_*]
             new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false).hint(R.string.hint_line_width),
@@ -168,6 +170,8 @@ public final class CustomTheme {
             new ParamSpec("size_variation", R.string.param_size_variation, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_size_variation),
             new ParamSpec("size_style", R.string.param_size_style, 0.0f, 2.0f, 2, 0, false).hint(R.string.hint_size_style)
                     .labels(R.string.size_style_even, R.string.size_style_giants, R.string.size_style_two),
+            new ParamSpec("paths_cross", R.string.param_paths_cross, 0.0f, 1.0f, 1, 0, false), // on/off
+            new ParamSpec("overlap_brighten", R.string.param_overlap_brighten, 0.0f, 1.0f, 1, 0, false), // on/off
     };
 
     public static final int PARAM_COUNT = PARAMS.length;

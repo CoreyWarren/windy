@@ -561,6 +561,9 @@ public final class EditorPanel extends LinearLayout {
 
     private void buildFlow() {
         content.addView(hint(R.string.flow_particles_hint));
+        content.addView(section(R.string.section_paths, HUE_RED));
+        content.addView(paramToggle(CustomTheme.PARAM_PATHS_CROSS, R.string.param_paths_cross_summary));
+        content.addView(paramToggle(CustomTheme.PARAM_OVERLAP_BRIGHTEN, R.string.param_overlap_brighten_summary));
         content.addView(section(R.string.flow_wind, HUE_TEAL));
         content.addView(themeParamSlider(CustomTheme.PARAM_REAL_WIND));
         content.addView(themeParamSlider(CustomTheme.PARAM_TURBULENCE));
@@ -916,6 +919,13 @@ public final class EditorPanel extends LinearLayout {
 
     private interface BoolSetter {
         void set(boolean value);
+    }
+
+    /** An on/off theme param (0 or 1). */
+    private View paramToggle(int param, int summary) {
+        return toggle(getContext().getString(CustomTheme.PARAMS[param].label), getContext().getString(summary), 0,
+                () -> CustomTheme.param(getContext(), param) >= 0.5f,
+                on -> CustomTheme.setParam(getContext(), param, on ? 1f : 0f, true));
     }
 
     private View themeParamSlider(int param) {

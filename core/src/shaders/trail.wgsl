@@ -103,6 +103,11 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
 
     let alpha = falloff * in.alpha * g.particle_opacity;
+    if (g.flow_d.z > 0.5) {
+        // overlap brightening off: premultiplied, and blended with max, so
+        // where trails overlap it shows the brighter one instead of adding up
+        return vec4<f32>(in.selector * alpha, alpha, in.speed * alpha, alpha);
+    }
     return vec4<f32>(
         in.selector, // red: slow/fast
         1.0, // green: blending

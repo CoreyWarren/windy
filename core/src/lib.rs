@@ -23,6 +23,12 @@ mod shaders {
     pub mod sprites {
         include!(concat!(env!("OUT_DIR"), "/sprites.rs"));
     }
+    pub mod field {
+        include!(concat!(env!("OUT_DIR"), "/field.rs"));
+    }
+    pub mod blur {
+        include!(concat!(env!("OUT_DIR"), "/blur.rs"));
+    }
 }
 
 pub use color::{Style, StyleColor, generate};

@@ -75,6 +75,12 @@ pub struct Flow {
     pub size_variation: f32,
     /// How widths are picked: 0 even, 1 rare giants, 2 two sizes.
     pub size_style: f32,
+    /// Whether particles move on their own (momentum and float/sink per
+    /// particle, and the turbulence changes shape), so paths can cross. If
+    /// not, they follow one smooth field exactly, which glides as a whole.
+    pub paths_cross: bool,
+    /// Whether overlapping trails add up (brighter), or show the brighter one.
+    pub overlap_brighten: bool,
 }
 
 impl Flow {
@@ -90,6 +96,8 @@ impl Flow {
         buoyancy: 0.0,
         size_variation: 0.0,
         size_style: 0.0,
+        paths_cross: true,
+        overlap_brighten: true,
     };
 
     /// Flow noise time wraps at this (must match FLOW_PERIOD in the shaders).

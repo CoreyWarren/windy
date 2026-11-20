@@ -40,6 +40,11 @@
     <string name="tab_flow">Flow</string>
     <string name="tab_trails">Trails</string>
     <string name="tab_lines">Lines</string>
+    <string name="section_paths">Paths</string>
+    <string name="param_paths_cross">Paths can cross</string>
+    <string name="param_paths_cross_summary">On: each particle moves on its own (momentum, float / sink) and the swirls change shape, so paths cross. Off: everything follows one smooth field that glides as a whole, so paths don\'t cross. Momentum then means gentler curves, and float / sink a shared upward drift.</string>
+    <string name="param_overlap_brighten">Overlap brightening</string>
+    <string name="param_overlap_brighten_summary">On: where trails overlap they add up and get brighter. Off: the brighter trail shows, so intersections don\'t stand out.</string>
     <string name="visibility">Effective visibility: %1$s (opacity × streak color alpha × variation)</string>
     <string name="visibility_too_faint">Effective visibility: %1$s — too faint to see. Raise opacity or the streak colors\' alpha.</string>
     <string name="bar_edit">Edit</string>

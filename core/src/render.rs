@@ -22,6 +22,10 @@ const TRAIL_UPDATE_FPS: f32 = 10.0;
 const TRAIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 const WORKGROUP: u32 = shaders::simulate::compute::MAIN_WORKGROUP_SIZE[0];
 
+// must match FIELD_W and FIELD_H in the shaders
+const FIELD_W: u32 = 64;
+const FIELD_H: u32 = 128;
+
 pub struct Renderer {
     config: Config,
     globals: Globals,
@@ -36,6 +40,14 @@ pub struct Renderer {
     trail_cleared: bool,
 
     sim_bg: shaders::simulate::bind_groups::BindGroup0,
+    field_bg: shaders::field::bind_groups::BindGroup0,
+    blur_bg: shaders::blur::bind_groups::BindGroup0,
+    field_raw_buf: wgpu::Buffer,
+    field_buf: wgpu::Buffer,
+    field_pipeline: wgpu::ComputePipeline,
+    blur_pipeline: wgpu::ComputePipeline,
+    trail_max_pipeline: wgpu::RenderPipeline,
+    glide: [f32; 2],
     trail_bg: shaders::trail::bind_groups::BindGroup0,
     composite_bg: shaders::composite::bind_groups::BindGroup0,
     sprites_bg: shaders::sprites::bind_groups::BindGroup0,
@@ -105,6 +117,21 @@ impl Renderer {
         });
 
         let sim_pipeline = shaders::simulate::compute::create_main_pipeline(device);
+        let field_pipeline = shaders::field::compute::create_main_pipeline(device);
+        let blur_pipeline = shaders::blur::compute::create_main_pipeline(device);
+        let field_size = (FIELD_W * FIELD_H) as u64 * 16; // vec4<f32> per cell
+        let field_raw_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("windy.field_raw"),
+            size: field_size,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        let field_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("windy.field"),
+            size: field_size,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
 
         let trail_module = shaders::trail::create_shader_module(device);
         let trail_pl = shaders::trail::create_pipeline_layout(device);
@@ -131,6 +158,33 @@ impl Renderer {
             layout: Some(&trail_pl),
             vertex: shaders::trail::vertex_state(&trail_module, &trail_vs),
             fragment: Some(shaders::trail::fragment_state(&trail_module, &trail_fs)),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
+        // overlap brightening off: max instead of adding up (the shader
+        // outputs premultiplied values for this)
+        let max_blend = wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::One,
+            operation: wgpu::BlendOperation::Max,
+        };
+        let trail_max_fs = shaders::trail::fs_main_entry([Some(wgpu::ColorTargetState {
+            format: TRAIL_FORMAT,
+            blend: Some(wgpu::BlendState {
+                color: max_blend,
+                alpha: max_blend,
+            }),
+            write_mask: wgpu::ColorWrites::ALL,
+        })]);
+        let trail_max_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("windy.trail_max_pipeline"),
+            layout: Some(&trail_pl),
+            vertex: shaders::trail::vertex_state(&trail_module, &trail_vs),
+            fragment: Some(shaders::trail::fragment_state(&trail_module, &trail_max_fs)),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
@@ -221,13 +275,15 @@ impl Renderer {
         });
 
         let config_alpha_decay = config.alpha_decay;
-        let sim_bg = make_sim_bg(
+        let sim_bg = make_sim_bg(device, &globals_buf, &particle_buf, &field_buf);
+        let field_bg = make_field_bg(
             device,
             &globals_buf,
-            &particle_buf,
             &wind_view,
             &wind_sampler,
+            &field_raw_buf,
         );
+        let blur_bg = make_blur_bg(device, &globals_buf, &field_raw_buf, &field_buf);
         let trail_bg = make_trail_bg(device, &globals_buf, &particle_buf);
         let sprites_bg = make_sprites_bg(device, &globals_buf, &particle_buf);
         let composite_bg = make_composite_bg(
@@ -249,6 +305,14 @@ impl Renderer {
             trail_sampler,
             trail_cleared: false,
             sim_bg,
+            field_bg,
+            blur_bg,
+            field_raw_buf,
+            field_buf,
+            field_pipeline,
+            blur_pipeline,
+            trail_max_pipeline,
+            glide: [0.0, 0.0],
             trail_bg,
             composite_bg,
             sprites_bg,
@@ -454,6 +518,16 @@ impl Renderer {
         self.flow_time = (self.flow_time + dt * self.config.flow.evolution.max(0.0)) % Flow::PERIOD;
         self.globals.flow_time = self.flow_time;
 
+        // smooth flow: the whole pattern glides (in noise space) instead of
+        // changing shape (wrapping far away to keep precision)
+        let glide = dt * self.config.flow.evolution.max(0.0) * 0.15;
+        self.glide = [
+            (self.glide[0] + glide * 0.8) % 4096.0,
+            (self.glide[1] - glide * 0.6) % 4096.0,
+        ];
+        self.globals.flow_d[0] = self.glide[0];
+        self.globals.flow_d[1] = self.glide[1];
+
         // ease trail decay back down from `alpha_decay_changed` (fps-independent)
         let ease = 1.0 - (1.0f32 - 0.019).powf((dt * 60.0).max(0.0));
         self.current_alpha_decay += (self.config.alpha_decay - self.current_alpha_decay) * ease;
@@ -486,6 +560,15 @@ impl Renderer {
                 label: Some("windy.simulate"),
                 timestamp_writes: None,
             });
+            // build the flow field, smooth it, then move the particles through it
+            let fg = (FIELD_W.div_ceil(8), FIELD_H.div_ceil(8));
+            cpass.set_pipeline(&self.field_pipeline);
+            self.field_bg.set(&mut cpass);
+            cpass.dispatch_workgroups(fg.0, fg.1, 1);
+            cpass.set_pipeline(&self.blur_pipeline);
+            self.blur_bg.set(&mut cpass);
+            cpass.dispatch_workgroups(fg.0, fg.1, 1);
+
             cpass.set_pipeline(&self.sim_pipeline);
             self.sim_bg.set(&mut cpass);
             let groups = self.config.particle_count.div_ceil(WORKGROUP);
@@ -526,7 +609,11 @@ impl Renderer {
         rpass.set_pipeline(&self.fade_pipeline);
         rpass.draw(0..3, 0..1);
 
-        rpass.set_pipeline(&self.trail_pipeline);
+        rpass.set_pipeline(if self.config.flow.overlap_brighten {
+            &self.trail_pipeline
+        } else {
+            &self.trail_max_pipeline
+        });
         self.trail_bg.set(&mut rpass);
         rpass.draw(0..6, 0..self.config.particle_count);
     }
@@ -536,8 +623,20 @@ impl Renderer {
             device,
             &self.globals_buf,
             &self.particle_buf,
+            &self.field_buf,
+        );
+        self.field_bg = make_field_bg(
+            device,
+            &self.globals_buf,
             &self.wind_view,
             &self.wind_sampler,
+            &self.field_raw_buf,
+        );
+        self.blur_bg = make_blur_bg(
+            device,
+            &self.globals_buf,
+            &self.field_raw_buf,
+            &self.field_buf,
         );
         self.trail_bg = make_trail_bg(device, &self.globals_buf, &self.particle_buf);
         self.sprites_bg = make_sprites_bg(device, &self.globals_buf, &self.particle_buf);
@@ -575,7 +674,18 @@ impl Renderer {
         let f = &c.flow;
         self.globals.flow_a = [f.variation, f.clumping, f.real_wind, f.turbulence];
         self.globals.flow_b = [f.swirl_size, f.evolution, f.warp, f.momentum];
-        self.globals.flow_c = [f.buoyancy, f.size_variation, f.size_style, 0.0];
+        self.globals.flow_c = [
+            f.buoyancy,
+            f.size_variation,
+            f.size_style,
+            if f.paths_cross { 0.0 } else { 1.0 },
+        ];
+        self.globals.flow_d = [
+            self.glide[0],
+            self.glide[1],
+            if f.overlap_brighten { 0.0 } else { 1.0 },
+            0.0,
+        ];
 
         let fx = &c.effects;
         self.globals.effects = fx.enabled & ((1 << Effects::COUNT) - 1);
@@ -748,16 +858,48 @@ fn make_sim_bg(
     device: &wgpu::Device,
     globals_buf: &wgpu::Buffer,
     particle_buf: &wgpu::Buffer,
-    wind_view: &wgpu::TextureView,
-    wind_sampler: &wgpu::Sampler,
+    field_buf: &wgpu::Buffer,
 ) -> shaders::simulate::bind_groups::BindGroup0 {
     shaders::simulate::bind_groups::BindGroup0::from_bindings(
         device,
         shaders::simulate::bind_groups::BindGroupLayout0 {
             g: globals_buf.as_entire_buffer_binding(),
             particles: particle_buf.as_entire_buffer_binding(),
+            field: field_buf.as_entire_buffer_binding(),
+        },
+    )
+}
+
+fn make_field_bg(
+    device: &wgpu::Device,
+    globals_buf: &wgpu::Buffer,
+    wind_view: &wgpu::TextureView,
+    wind_sampler: &wgpu::Sampler,
+    field_raw_buf: &wgpu::Buffer,
+) -> shaders::field::bind_groups::BindGroup0 {
+    shaders::field::bind_groups::BindGroup0::from_bindings(
+        device,
+        shaders::field::bind_groups::BindGroupLayout0 {
+            g: globals_buf.as_entire_buffer_binding(),
             wind_tex: wind_view,
             wind_samp: wind_sampler,
+            field_raw: field_raw_buf.as_entire_buffer_binding(),
+        },
+    )
+}
+
+fn make_blur_bg(
+    device: &wgpu::Device,
+    globals_buf: &wgpu::Buffer,
+    field_raw_buf: &wgpu::Buffer,
+    field_buf: &wgpu::Buffer,
+) -> shaders::blur::bind_groups::BindGroup0 {
+    shaders::blur::bind_groups::BindGroup0::from_bindings(
+        device,
+        shaders::blur::bind_groups::BindGroupLayout0 {
+            g: globals_buf.as_entire_buffer_binding(),
+            field_raw: field_raw_buf.as_entire_buffer_binding(),
+            field: field_buf.as_entire_buffer_binding(),
         },
     )
 }
