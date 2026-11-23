@@ -51,6 +51,7 @@ struct Globals {
     flow_b: vec4<f32>,      // (swirl size, flow change speed, warp, momentum)
     flow_c: vec4<f32>,      // (float/sink, size variation, size style, smooth flow: 1 = paths don't cross)
     flow_d: vec4<f32>,      // (glide offset x, y, overlap brightening off: 1, fade in in age units)
+    interact: vec4<f32>,    // (shake speed boost, shake scatter, down direction x, y)
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)

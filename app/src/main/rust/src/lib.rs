@@ -12,7 +12,8 @@ use raw_window_handle::{
     AndroidDisplayHandle, AndroidNdkWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 use windy_wallpaper_core::{
-    Config, Effects, Renderer, Style, Theme, ThemeColors, ThemeParams, ThemeSource, generate,
+    Config, Effects, Interaction, Renderer, Style, Theme, ThemeColors, ThemeParams, ThemeSource,
+    generate,
 };
 
 // must match net.pgaskin.windy.CustomTheme
@@ -43,6 +44,13 @@ const PARAM_SIZE_STYLE: usize = 17;
 const PARAM_PATHS_CROSS: usize = 18;
 const PARAM_OVERLAP_BRIGHTEN: usize = 19;
 const PARAM_FADE_IN: usize = 20;
+// app-only (the app reads the sensor), but the defaults come from here
+const PARAM_SHAKE: usize = 21;
+const PARAM_SHAKE_SENSITIVITY: usize = 22;
+const PARAM_SHAKE_STRENGTH: usize = 23;
+const PARAM_SHAKE_CALM: usize = 24;
+const PARAM_SHAKE_MODE: usize = 25;
+const PARAM_TILT: usize = 26;
 
 // higher counts lag on phones (especially with effects)
 const MAX_PARTICLES: u32 = 4096;
@@ -293,6 +301,24 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeRestart
     }
     let st = unsafe { state(handle) };
     st.renderer.restart(&st.device);
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetInteraction(
+    _env: EnvUnowned,
+    _class: JClass,
+    handle: jlong,
+    speed: jfloat,
+    scatter: jfloat,
+    down_x: jfloat,
+    down_y: jfloat,
+) {
+    if handle == 0 {
+        return;
+    }
+    unsafe { state(handle) }
+        .renderer
+        .set_interaction(speed, scatter, [down_x, down_y]);
 }
 
 #[unsafe(no_mangle)]
@@ -619,6 +645,12 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeThemePa
         PARAM_PATHS_CROSS => config.flow.paths_cross as u8 as f32,
         PARAM_OVERLAP_BRIGHTEN => config.flow.overlap_brighten as u8 as f32,
         PARAM_FADE_IN => config.particle_fade_in,
+        PARAM_SHAKE => Interaction::DEFAULT.shake as u8 as f32,
+        PARAM_SHAKE_SENSITIVITY => Interaction::DEFAULT.sensitivity,
+        PARAM_SHAKE_STRENGTH => Interaction::DEFAULT.strength,
+        PARAM_SHAKE_CALM => Interaction::DEFAULT.calm,
+        PARAM_SHAKE_MODE => Interaction::DEFAULT.mode,
+        PARAM_TILT => Interaction::DEFAULT.tilt as u8 as f32,
         PARAM_TRAIL_FOLLOW_SPEED => {
             if config.trail_follow_speed {
                 1.0

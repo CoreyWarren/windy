@@ -337,6 +337,7 @@ impl Renderer {
         };
         renderer.update_static_globals();
         renderer.globals.srgb_output = surface_format.is_srgb() as u32;
+        renderer.set_interaction(0.0, 0.0, [0.0, 1.0]); // straight down
         renderer
     }
 
@@ -399,6 +400,17 @@ impl Renderer {
         self.user_location = [lng, lat];
         self.field_dirty = true;
         self.update_static_globals();
+    }
+
+    /// Shaking and tilting: speed boost and scatter [0,1], and the down
+    /// direction in screen coordinates (0, 1 if not tilting).
+    pub fn set_interaction(&mut self, speed: f32, scatter: f32, down: [f32; 2]) {
+        self.globals.interact = [
+            speed.clamp(0.0, 4.0),
+            scatter.clamp(0.0, 4.0),
+            down[0].clamp(-1.5, 1.5),
+            down[1].clamp(-1.5, 1.5),
+        ];
     }
 
     pub fn set_offset_x(&mut self, offset: f32) {

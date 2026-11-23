@@ -574,6 +574,13 @@ public final class EditorPanel extends LinearLayout {
         content.addView(section(R.string.flow_feel, HUE_VIOLET));
         content.addView(themeParamSlider(CustomTheme.PARAM_MOMENTUM));
         content.addView(themeParamSlider(CustomTheme.PARAM_BUOYANCY));
+        content.addView(section(R.string.section_interaction, HUE_GREEN));
+        content.addView(paramToggle(CustomTheme.PARAM_SHAKE, R.string.param_shake_summary));
+        content.addView(themeParamSlider(CustomTheme.PARAM_SHAKE_SENSITIVITY));
+        content.addView(themeParamSlider(CustomTheme.PARAM_SHAKE_STRENGTH));
+        content.addView(themeParamSlider(CustomTheme.PARAM_SHAKE_CALM));
+        content.addView(themeParamSlider(CustomTheme.PARAM_SHAKE_MODE));
+        content.addView(paramToggle(CustomTheme.PARAM_TILT, R.string.param_tilt_summary));
         content.addView(section(R.string.flow_particles, HUE_AMBER));
         content.addView(themeParamSlider(CustomTheme.PARAM_VARIATION));
         content.addView(themeParamSlider(CustomTheme.PARAM_SIZE_VARIATION));

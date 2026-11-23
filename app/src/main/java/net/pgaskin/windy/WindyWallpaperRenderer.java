@@ -144,12 +144,16 @@ public abstract class WindyWallpaperRenderer extends Thread {
         final float dpiScale = context.getResources().getDisplayMetrics().density;
         final SharedPreferences prefs = Prefs.get(context);
         WindyWallpaperNative renderer = null;
+        final Interaction interaction = new Interaction(context);
         renderers.add(this);
         prefs.registerOnSharedPreferenceChangeListener(settingsListener);
         try {
             while (running) {
                 final int theme;
                 synchronized (this) {
+                    if (!active) {
+                        interaction.setListening(false); // never listen while hidden
+                    }
                     while (running && !active) {
                         try {
                             wait();
@@ -168,6 +172,9 @@ public abstract class WindyWallpaperRenderer extends Thread {
                     settled = false;
                 }
 
+                if (staticMode) {
+                    interaction.setListening(false); // nothing moves in static mode
+                }
                 if (staticMode && !stale()) {
                     awaitChange();
                     continue;
@@ -245,13 +252,20 @@ public abstract class WindyWallpaperRenderer extends Thread {
                     }
                 }
 
+                final boolean shaking = applyInteraction(renderer, interaction, theme);
+
                 renderer.render();
 
-                awaitFrame(frameStart, Prefs.limitFps(context, fps(easing)));
+                int fps = fps(easing);
+                if (shaking) {
+                    fps = Math.max(fps, 30); // keep fast motion smooth, briefly
+                }
+                awaitFrame(frameStart, Prefs.limitFps(context, fps));
             }
         } catch (Throwable t) {
             Log.e(TAG, getName() + " render loop failed", t);
         } finally {
+            interaction.setListening(false);
             prefs.unregisterOnSharedPreferenceChangeListener(settingsListener);
             renderers.remove(this);
             if (renderer != null) {
@@ -291,6 +305,24 @@ public abstract class WindyWallpaperRenderer extends Thread {
         renderer.setCustom(CustomTheme.colors(context), CustomTheme.params(context));
         renderer.setEffects(CustomTheme.effects(context), CustomTheme.effectColors(context), CustomTheme.effectParams(context));
         customSeq = seq;
+    }
+
+    /** Applies shaking and tilting, returning whether a shake is still settling. */
+    private boolean applyInteraction(WindyWallpaperNative renderer, Interaction interaction, int theme) {
+        final float[] p = theme == Themes.CUSTOM ? CustomTheme.params(context) : null;
+        final boolean shake = p != null && p[CustomTheme.PARAM_SHAKE] >= 0.5f;
+        final boolean tilt = p != null && p[CustomTheme.PARAM_TILT] >= 0.5f;
+        interaction.setListening((shake || tilt) && !powerSave());
+        if (p == null) {
+            renderer.setInteraction(0, 0, 0, 1);
+            return false;
+        }
+        interaction.setSensitivity(p[CustomTheme.PARAM_SHAKE_SENSITIVITY]);
+        final float energy = shake ? interaction.step(p[CustomTheme.PARAM_SHAKE_CALM]) * p[CustomTheme.PARAM_SHAKE_STRENGTH] * 2f : 0;
+        final int mode = Math.round(p[CustomTheme.PARAM_SHAKE_MODE]); // 0 speed up, 1 scatter, 2 both
+        final float[] down = tilt ? interaction.down() : new float[]{0, 1};
+        renderer.setInteraction(mode != 1 ? energy : 0, mode != 0 ? energy : 0, down[0], down[1]);
+        return energy > 0.02f;
     }
 
     private void applyWindField(WindyWallpaperNative renderer) {

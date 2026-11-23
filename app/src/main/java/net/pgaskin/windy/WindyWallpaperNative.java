@@ -41,6 +41,11 @@ public final class WindyWallpaperNative implements AutoCloseable {
         nativeRestart(handle);
     }
 
+    /** Shake speed boost and scatter [0,~1], and the down direction on screen. */
+    public void setInteraction(float speed, float scatter, float downX, float downY) {
+        nativeSetInteraction(handle, speed, scatter, downX, downY);
+    }
+
     public void setOffset(float offset) {
         nativeSetOffset(handle, offset);
     }
@@ -149,6 +154,7 @@ public final class WindyWallpaperNative implements AutoCloseable {
     private static native void nativeSkip(long handle, int frames);
     private static native void nativeRestart(long handle);
     private static native void nativeSetOffset(long handle, float offset);
+    private static native void nativeSetInteraction(long handle, float speed, float scatter, float downX, float downY);
     private static native void nativeSetUserLocation(long handle, float lng, float lat);
     private static native void nativeSetCustom(long handle, int[] colors, float[] params);
     private static native void nativeSetEffects(long handle, int enabled, int[] colors, float[] params);

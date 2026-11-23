@@ -17,12 +17,21 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // where it wants to go (screen fractions per second), from the field
     var goal = field_at(p.pos).xy * trait_speed(p.seed, variation);
+    let down = g.interact.zw; // tilt (or straight down)
+
+    // shaking: speed up, and scatter (each particle pushed its own way, which
+    // turns slowly so it looks like stirring)
+    goal = goal * (1.0 + g.interact.x * 3.0);
+    if (g.interact.y > 0.0) {
+        let a = trait_rand(p.seed, 9.0) * 6.2831853 + g.time_acc * (0.5 + trait_rand(p.seed, 10.0));
+        goal = goal + vec2<f32>(cos(a), sin(a)) * g.interact.y * 0.25 * g.resolution;
+    }
 
     // smooth flow follows the field exactly (so paths never cross), free
     // flow adds per-particle float/sink and momentum
     var vel = goal;
     if (!smooth_flow) {
-        goal.y = goal.y + (trait_rand(p.seed, 7.0) - 0.5) * 2.0 * g.flow_c.x * 0.06; // float/sink
+        goal = goal + down * (trait_rand(p.seed, 7.0) - 0.5) * 2.0 * g.flow_c.x * 0.06; // float/sink
         vel = goal;
         let tau = g.flow_b.w * 1.5;
         if (tau > 0.001) {
@@ -35,7 +44,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // snow effect: flakes fall (fraction of the screen per second)
     if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x, i)) {
-        new_pos.y = new_pos.y + g.fx_snow_p.z * 0.25 * g.time_delta;
+        new_pos = new_pos + down * g.fx_snow_p.z * 0.25 * g.time_delta;
     }
 
     var life = p.age - (g.time_delta / g.particle_life) * 0.3 * trait_life(p.seed, variation);

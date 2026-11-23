@@ -150,6 +150,12 @@ public final class CustomTheme {
     public static final int PARAM_PATHS_CROSS = 18; // 0 or 1
     public static final int PARAM_OVERLAP_BRIGHTEN = 19; // 0 or 1
     public static final int PARAM_FADE_IN = 20; // seconds
+    public static final int PARAM_SHAKE = 21; // 0 or 1
+    public static final int PARAM_SHAKE_SENSITIVITY = 22;
+    public static final int PARAM_SHAKE_STRENGTH = 23;
+    public static final int PARAM_SHAKE_CALM = 24; // seconds
+    public static final int PARAM_SHAKE_MODE = 25; // 0 speed up, 1 scatter, 2 both
+    public static final int PARAM_TILT = 26; // 0 or 1
 
     public static final ParamSpec[] PARAMS = { // [PARAM_*]
             new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false).hint(R.string.hint_line_width),
@@ -174,6 +180,13 @@ public final class CustomTheme {
             new ParamSpec("paths_cross", R.string.param_paths_cross, 0.0f, 1.0f, 1, 0, false), // on/off
             new ParamSpec("overlap_brighten", R.string.param_overlap_brighten, 0.0f, 1.0f, 1, 0, false), // on/off
             new ParamSpec("particle_fade_in", R.string.param_fade_in, 0.0f, 3.0f, 30, 1, false).hint(R.string.hint_fade_in),
+            new ParamSpec("shake", R.string.param_shake, 0.0f, 1.0f, 1, 0, false), // on/off
+            new ParamSpec("shake_sensitivity", R.string.param_shake_sensitivity, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_shake_sensitivity),
+            new ParamSpec("shake_strength", R.string.param_shake_strength, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_shake_strength),
+            new ParamSpec("shake_calm", R.string.param_shake_calm, 0.3f, 8.0f, 77, 1, false).hint(R.string.hint_shake_calm),
+            new ParamSpec("shake_mode", R.string.param_shake_mode, 0.0f, 2.0f, 2, 0, false).hint(R.string.hint_shake_mode)
+                    .labels(R.string.shake_mode_speed, R.string.shake_mode_scatter, R.string.shake_mode_both),
+            new ParamSpec("tilt", R.string.param_tilt, 0.0f, 1.0f, 1, 0, false), // on/off
     };
 
     public static final int PARAM_COUNT = PARAMS.length;

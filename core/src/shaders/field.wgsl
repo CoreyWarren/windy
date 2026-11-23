@@ -28,7 +28,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     var v = wind * g.wind_speed * 0.2;
     if (smooth_flow) {
-        v.y = v.y - g.flow_c.x * 0.06; // everything floats up together
+        v = v - g.interact.zw * g.flow_c.x * 0.06; // everything floats up (against the tilt) together
     }
     field_raw[gid.y * FIELD_W + gid.x] = vec4<f32>(v, wind_sample(wpos).b, 0.0);
 }

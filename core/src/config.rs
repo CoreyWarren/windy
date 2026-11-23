@@ -85,6 +85,32 @@ pub struct Flow {
     pub overlap_brighten: bool,
 }
 
+/// Shake and tilt settings. The renderer doesn't use these (the app reads the
+/// sensor and calls `Renderer::set_interaction`), they're just the defaults.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Interaction {
+    pub shake: bool,
+    pub sensitivity: f32,
+    pub strength: f32,
+    /// Seconds to settle after a shake.
+    pub calm: f32,
+    /// 0 speed up, 1 scatter, 2 both.
+    pub mode: f32,
+    /// Tilt the down direction (snow, float/sink) with the phone.
+    pub tilt: bool,
+}
+
+impl Interaction {
+    pub const DEFAULT: Interaction = Interaction {
+        shake: true,
+        sensitivity: 0.5,
+        strength: 0.5,
+        calm: 2.0,
+        mode: 2.0,
+        tilt: false,
+    };
+}
+
 impl Flow {
     pub const DEFAULT: Flow = Flow {
         variation: 0.0,
