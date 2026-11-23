@@ -40,6 +40,8 @@
     <string name="tab_flow">Flow</string>
     <string name="tab_trails">Trails</string>
     <string name="tab_lines">Lines</string>
+    <string name="param_fade_in">Fade in (s)</string>
+    <string name="hint_fade_in">How many seconds a new particle takes to fade in, so particles appear gently instead of popping in.</string>
     <string name="section_paths">Paths</string>
     <string name="param_paths_cross">Paths can cross</string>
     <string name="param_paths_cross_summary">On: each particle moves on its own (momentum, float / sink) and the swirls change shape, so paths cross. Off: everything follows one smooth field that glides as a whole, so paths don\'t cross. Momentum then means gentler curves, and float / sink a shared upward drift.</string>
@@ -87,7 +89,7 @@
     <string name="hint_opacity">How bright each streak is. Above 1, overlapping streaks blend into solid color.</string>
     <string name="hint_trail_decay">How long trails last. Lower fades them faster: 0.65 is very short, 0.999 leaves long smears.</string>
     <string name="hint_wind_speed">How fast particles travel. Faster also means longer streaks, unless trails follow wind speed.</string>
-    <string name="hint_particle_count">How many particles exist at once. The biggest factor for lag and battery.</string>
+    <string name="hint_particle_count">How many particles exist at once (up to 4096). Snow, comets, and fireflies only use the first 512, so they stay light.</string>
     <string name="hint_particle_life">Average seconds a particle lives before it fades out and reappears somewhere else.</string>
     <string name="hint_variation">Gives each particle its own speed, brightness, and lifetime. 0 makes them identical.</string>
     <string name="hint_size_variation">How different particle widths are. At 1, the smallest are about a fifth of the line width and the biggest several times it.</string>

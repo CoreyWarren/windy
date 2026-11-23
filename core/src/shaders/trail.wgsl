@@ -45,7 +45,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     // lines thinner than about a pixel are drawn a pixel wide but fainter
     // (matching their coverage), so they don't disappear
     let hw_real = half_width() * trait_width(p.seed, g.flow_c.y, g.flow_c.z);
-    let hw = max(hw_real, MIN_HALF_WIDTH);
+    let hw = clamp(hw_real, MIN_HALF_WIDTH, MAX_HALF_WIDTH);
     let half_w = hw + 1.0;
     let half_l = len * 0.5;
 
@@ -68,16 +68,16 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     out.selector = step(0.7, rand(p.uv));
 
     // fade in on spawn, out on death
-    let life = streak_fade(p.age, p.life0);
+    let life = streak_fade(p.age, p.life0, g.flow_d.w);
 
     // accumulate proportional to distance travelled
     // (instead of per-frame like the original one, which made things brighter on slower framerates)
     let r = min(len / max(2.0 * hw, 1e-3), 1.0);
-    out.alpha = life * r * trait_opacity(p.seed, g.flow_a.x) * (hw_real / hw);
+    out.alpha = life * r * trait_opacity(p.seed, g.flow_a.x) * min(hw_real / hw, 1.0);
     out.hw = hw;
 
     // snow effect: flakes are drawn as sprites instead of streaks
-    if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x)) {
+    if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x, iidx)) {
         out.alpha = 0.0;
     }
 

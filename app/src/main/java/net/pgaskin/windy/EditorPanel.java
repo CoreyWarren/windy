@@ -502,6 +502,7 @@ public final class EditorPanel extends LinearLayout {
         content.addView(section(R.string.section_particles, HUE_AMBER));
         content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_COUNT));
         content.addView(themeParamSlider(CustomTheme.PARAM_PARTICLE_LIFE));
+        content.addView(themeParamSlider(CustomTheme.PARAM_FADE_IN));
 
         // colors, collapsed (they're rarely changed)
         final TextView colorsHeading = section(colorsOpen ? R.string.section_colors_open : R.string.section_colors_closed, HUE_PINK);

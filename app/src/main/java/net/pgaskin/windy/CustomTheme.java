@@ -149,13 +149,14 @@ public final class CustomTheme {
     public static final int PARAM_SIZE_STYLE = 17; // 0 even, 1 rare giants, 2 two sizes
     public static final int PARAM_PATHS_CROSS = 18; // 0 or 1
     public static final int PARAM_OVERLAP_BRIGHTEN = 19; // 0 or 1
+    public static final int PARAM_FADE_IN = 20; // seconds
 
     public static final ParamSpec[] PARAMS = { // [PARAM_*]
             new ParamSpec("line_half_width", R.string.param_line_width, 0.25f, 4.0f, 75, 2, false).hint(R.string.hint_line_width),
             new ParamSpec("particle_opacity", R.string.param_opacity, 0.0f, 2.0f, 100, 2, false).hint(R.string.hint_opacity),
             new ParamSpec("alpha_decay", R.string.param_trail_decay, 0.65f, 0.9999f, 700, 4, true).hint(R.string.hint_trail_decay),
             new ParamSpec("wind_speed", R.string.param_wind_speed, 0.0f, 2.0f, 200, 3, false).hint(R.string.hint_wind_speed),
-            new ParamSpec("particle_count", R.string.param_particle_count, 256, 16384, 63, 0, false).hint(R.string.hint_particle_count),
+            new ParamSpec("particle_count", R.string.param_particle_count, 256, 4096, 30, 0, false).hint(R.string.hint_particle_count),
             new ParamSpec("particle_life", R.string.param_particle_life, 1.0f, 30.0f, 58, 1, false).hint(R.string.hint_particle_life),
             new ParamSpec("trail_follow_speed", R.string.param_trail_follow_speed, 0.0f, 1.0f, 1, 0, false), // on/off
             new ParamSpec("variation", R.string.param_variation, 0.0f, 1.0f, 100, 2, false).hint(R.string.hint_variation),
@@ -172,6 +173,7 @@ public final class CustomTheme {
                     .labels(R.string.size_style_even, R.string.size_style_giants, R.string.size_style_two),
             new ParamSpec("paths_cross", R.string.param_paths_cross, 0.0f, 1.0f, 1, 0, false), // on/off
             new ParamSpec("overlap_brighten", R.string.param_overlap_brighten, 0.0f, 1.0f, 1, 0, false), // on/off
+            new ParamSpec("particle_fade_in", R.string.param_fade_in, 0.0f, 3.0f, 30, 1, false).hint(R.string.hint_fade_in),
     };
 
     public static final int PARAM_COUNT = PARAMS.length;

@@ -42,7 +42,11 @@ const PARAM_SIZE_VARIATION: usize = 16;
 const PARAM_SIZE_STYLE: usize = 17;
 const PARAM_PATHS_CROSS: usize = 18;
 const PARAM_OVERLAP_BRIGHTEN: usize = 19;
-const PARAM_COUNT: usize = 20;
+const PARAM_FADE_IN: usize = 20;
+
+// higher counts lag on phones (especially with effects)
+const MAX_PARTICLES: u32 = 4096;
+const PARAM_COUNT: usize = 21;
 
 const EFFECT_PARAM_COUNT: usize = Effects::PARAM_COUNT; // per effect
 
@@ -335,7 +339,9 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeSetCust
         config.particle_opacity = params_buf[PARAM_PARTICLE_OPACITY];
         config.alpha_decay = params_buf[PARAM_ALPHA_DECAY];
         config.wind_speed = params_buf[PARAM_WIND_SPEED];
-        config.particle_count = (params_buf[PARAM_PARTICLE_COUNT].round() as u32).clamp(64, 65536);
+        config.particle_count =
+            (params_buf[PARAM_PARTICLE_COUNT].round() as u32).clamp(64, MAX_PARTICLES);
+        config.particle_fade_in = params_buf[PARAM_FADE_IN].clamp(0.0, 10.0);
         config.particle_life = params_buf[PARAM_PARTICLE_LIFE].clamp(0.1, 600.0);
         config.trail_follow_speed = params_buf[PARAM_TRAIL_FOLLOW_SPEED] >= 0.5;
         config.flow.variation = params_buf[PARAM_VARIATION].clamp(0.0, 1.0);
@@ -612,6 +618,7 @@ pub extern "system" fn Java_net_pgaskin_windy_WindyWallpaperNative_nativeThemePa
         PARAM_SIZE_STYLE => config.flow.size_style,
         PARAM_PATHS_CROSS => config.flow.paths_cross as u8 as f32,
         PARAM_OVERLAP_BRIGHTEN => config.flow.overlap_brighten as u8 as f32,
+        PARAM_FADE_IN => config.particle_fade_in,
         PARAM_TRAIL_FOLLOW_SPEED => {
             if config.trail_follow_speed {
                 1.0

@@ -23,7 +23,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     let base = max(g.line_half_width, 1.0) * trait_width(p.seed, g.flow_c.y, g.flow_c.z);
 
     // fade in on spawn, out on death (same as the trails)
-    let life = streak_fade(p.age, p.life0);
+    let life = streak_fade(p.age, p.life0, g.flow_d.w);
 
     var radii = vec4<f32>(0.0);
     var weight = vec3<f32>(0.0);
@@ -32,7 +32,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
     var head_color = vec4<f32>(0.0);
     var halo_color = vec4<f32>(0.0);
 
-    if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x)) {
+    if (has_fx(g.effects, FX_SNOW) && is_flake(p.uv, g.fx_snow_q.x, iidx)) {
         // p: (size, size variation, fall, softness), q: (amount, -, -, -)
         let r = rand(p.uv * 3.1 + vec2<f32>(0.17));
         let variation = 1.0 + g.fx_snow_p.y * (r - 0.5) * 1.6;
@@ -64,6 +64,7 @@ fn vs_main(@builtin(vertex_index) vidx: u32, @builtin(instance_index) iidx: u32)
         weight.z = life * flicker * fly_color.a;
     }
 
+    radii = min(radii, vec4<f32>(MAX_SPRITE_RADIUS));
     let radius = max(max(radii.x, radii.y), max(radii.z, radii.w)) + 1.0;
 
     // trail position to screen position (inverse of the composite mapping)

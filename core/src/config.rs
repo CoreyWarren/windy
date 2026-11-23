@@ -17,6 +17,8 @@ pub struct Config {
 
     // Lifetime of simulated particles.
     pub particle_life: f32,
+    /// How long particles take to fade in after spawning, in seconds.
+    pub particle_fade_in: f32,
 
     pub slow_wind_color: [f32; 4], // rgba [0,1]
     pub fast_wind_color: [f32; 4], // rgba [0,1]
@@ -480,6 +482,7 @@ impl Default for Config {
             particle_count: 2048,
             wind_speed: 0.1,
             particle_life: 8.0,
+            particle_fade_in: 0.8,
             slow_wind_color: [1.0, 0.0, 1.0, 1.0],
             fast_wind_color: [0.0, 1.0, 1.0, 1.0],
             bg_color1: [0.1, 0.0, 0.1, 0.1],

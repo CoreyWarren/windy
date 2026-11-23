@@ -50,7 +50,7 @@ struct Globals {
     flow_a: vec4<f32>,      // (variation, clumping, real wind, turbulence)
     flow_b: vec4<f32>,      // (swirl size, flow change speed, warp, momentum)
     flow_c: vec4<f32>,      // (float/sink, size variation, size style, smooth flow: 1 = paths don't cross)
-    flow_d: vec4<f32>,      // (glide offset x, y, overlap brightening off: 1, -)
+    flow_d: vec4<f32>,      // (glide offset x, y, overlap brightening off: 1, fade in in age units)
     size: vec2<f32>,        // android home screen parallax scale (x, y)
     resolution: vec2<f32>,  // aspect-ratio correction for simulation (h/w, 1)
     trail_size: vec2<f32>,  // trail texture dimensions (real px)
@@ -149,9 +149,10 @@ fn life_fade(age: f32, life0: f32, fade_in: f32, fade_out: f32) -> f32 {
     return smoothstep(0.0, max(fade_in, 0.001), life0 - age) * smoothstep(0.0, max(fade_out, 0.001), age);
 }
 
-// the usual fade for streaks and sprites
-fn streak_fade(age: f32, life0: f32) -> f32 {
-    return life_fade(age, life0, life0 * 0.1, 0.25);
+// the usual fade for streaks and sprites (fade_in in age units, from the
+// fade in seconds)
+fn streak_fade(age: f32, life0: f32, fade_in: f32) -> f32 {
+    return life_fade(age, life0, fade_in, 0.25);
 }
 
 fn trait_opacity(seed: f32, variation: f32) -> f32 {
@@ -203,9 +204,20 @@ fn vnoise3(p: vec3<f32>, period: f32) -> f32 {
     return mix(mix(a, b, u.y), mix(c, d, u.y), u.z);
 }
 
+// sprites (flakes, comet heads, fireflies) only come from the first this many
+// particles, so their count (and cost) doesn't grow with the particle count
+const SPRITE_CAP: u32 = 512u;
+
+// sprites are never bigger than this (px radius), since huge ones are very
+// expensive to draw
+const MAX_SPRITE_RADIUS: f32 = 72.0;
+
+// streaks are never wider than this (px half-width), for the same reason
+const MAX_HALF_WIDTH: f32 = 24.0;
+
 // snow effect: whether a particle is a flake instead of a streak
-fn is_flake(uv: vec2<f32>, amount: f32) -> bool {
-    return rand(uv * 2.9 + vec2<f32>(0.43)) < amount;
+fn is_flake(uv: vec2<f32>, amount: f32, index: u32) -> bool {
+    return index < SPRITE_CAP && rand(uv * 2.9 + vec2<f32>(0.43)) < amount;
 }
 
 // same as original glsl rand

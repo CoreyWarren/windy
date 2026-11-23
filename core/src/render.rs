@@ -26,6 +26,9 @@ const WORKGROUP: u32 = shaders::simulate::compute::MAIN_WORKGROUP_SIZE[0];
 const FIELD_W: u32 = 64;
 const FIELD_H: u32 = 128;
 
+// must match SPRITE_CAP in the shaders
+const SPRITE_CAP: u32 = 512;
+
 pub struct Renderer {
     config: Config,
     globals: Globals,
@@ -48,6 +51,7 @@ pub struct Renderer {
     blur_pipeline: wgpu::ComputePipeline,
     trail_max_pipeline: wgpu::RenderPipeline,
     glide: [f32; 2],
+    field_dirty: bool, // rebuild the flow field even if it isn't animated
     trail_bg: shaders::trail::bind_groups::BindGroup0,
     composite_bg: shaders::composite::bind_groups::BindGroup0,
     sprites_bg: shaders::sprites::bind_groups::BindGroup0,
@@ -313,6 +317,7 @@ impl Renderer {
             blur_pipeline,
             trail_max_pipeline,
             glide: [0.0, 0.0],
+            field_dirty: true,
             trail_bg,
             composite_bg,
             sprites_bg,
@@ -357,6 +362,7 @@ impl Renderer {
     pub fn set_config(&mut self, device: &wgpu::Device, config: Config) {
         let reset_particles = config.particle_count != self.config.particle_count;
         self.config = config;
+        self.field_dirty = true;
         if reset_particles {
             let particles = init_particles(&self.config);
             self.particle_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -391,6 +397,7 @@ impl Renderer {
             self.trigger_redraw();
         }
         self.user_location = [lng, lat];
+        self.field_dirty = true;
         self.update_static_globals();
     }
 
@@ -471,11 +478,17 @@ impl Renderer {
             if self.has_sprites() {
                 rpass.set_pipeline(&self.sprites_pipeline);
                 self.sprites_bg.set(&mut rpass);
-                rpass.draw(0..6, 0..self.config.particle_count);
+                rpass.draw(0..6, 0..self.config.particle_count.min(SPRITE_CAP));
             }
         }
 
         queue.submit(Some(encoder.finish()));
+    }
+
+    /// Whether the flow field changes over time (turbulence or warp, moving).
+    fn field_animated(&self) -> bool {
+        let f = &self.config.flow;
+        (f.turbulence > 0.0 || f.warp > 0.0) && f.evolution > 0.0
     }
 
     fn has_sprites(&self) -> bool {
@@ -560,14 +573,18 @@ impl Renderer {
                 label: Some("windy.simulate"),
                 timestamp_writes: None,
             });
-            // build the flow field, smooth it, then move the particles through it
-            let fg = (FIELD_W.div_ceil(8), FIELD_H.div_ceil(8));
-            cpass.set_pipeline(&self.field_pipeline);
-            self.field_bg.set(&mut cpass);
-            cpass.dispatch_workgroups(fg.0, fg.1, 1);
-            cpass.set_pipeline(&self.blur_pipeline);
-            self.blur_bg.set(&mut cpass);
-            cpass.dispatch_workgroups(fg.0, fg.1, 1);
+            // build the flow field and smooth it (only if it changed), then
+            // move the particles through it
+            if self.field_dirty || self.field_animated() {
+                self.field_dirty = false;
+                let fg = (FIELD_W.div_ceil(8), FIELD_H.div_ceil(8));
+                cpass.set_pipeline(&self.field_pipeline);
+                self.field_bg.set(&mut cpass);
+                cpass.dispatch_workgroups(fg.0, fg.1, 1);
+                cpass.set_pipeline(&self.blur_pipeline);
+                self.blur_bg.set(&mut cpass);
+                cpass.dispatch_workgroups(fg.0, fg.1, 1);
+            }
 
             cpass.set_pipeline(&self.sim_pipeline);
             self.sim_bg.set(&mut cpass);
@@ -619,6 +636,7 @@ impl Renderer {
     }
 
     fn rebuild_bind_groups(&mut self, device: &wgpu::Device) {
+        self.field_dirty = true;
         self.sim_bg = make_sim_bg(
             device,
             &self.globals_buf,
@@ -684,7 +702,9 @@ impl Renderer {
             self.glide[0],
             self.glide[1],
             if f.overlap_brighten { 0.0 } else { 1.0 },
-            0.0,
+            // fade in seconds to age units (the age goes down by 0.3 per
+            // particle life)
+            c.particle_fade_in.max(0.0) * 0.3 / c.particle_life.max(0.1),
         ];
 
         let fx = &c.effects;
@@ -769,6 +789,9 @@ fn init_particles(config: &Config) -> Vec<Particle> {
     let count = config.particle_count as usize;
     let dim = (count as f32).sqrt().ceil() as u32;
     let mut rng = Rng::new(0x9E3779B9);
+    // stagger their appearance over a couple of seconds (in age units) so a
+    // restart doesn't pop everything in at once
+    let stagger = 2.0 * 0.3 / config.particle_life.max(0.1);
     (0..count)
         .map(|i| {
             let gx = (i as u32 % dim) as f32 / dim as f32;
@@ -783,7 +806,7 @@ fn init_particles(config: &Config) -> Vec<Particle> {
                 speed: 0.0,
                 vel: [0.0, 0.0],
                 seed: rng.next_f32(),
-                life0: 1.0, // already faded in
+                life0: age - rng.next_f32() * stagger, // fades in after a random delay
             }
         })
         .collect()
